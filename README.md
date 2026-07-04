@@ -1,235 +1,149 @@
 # python-mcp-demo
 
-A **production-ready** MCP (Model Context Protocol) server library built with [FastMCP](https://github.com/jlowin/fastmcp).
+基于 [FastMCP](https://github.com/jlowin/fastmcp) 构建的生产级 MCP（Model Context Protocol）服务器库。
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT)
 
-## Features
+## 功能特性
 
-- **8 built-in tools** — hello, fetch_url, add, calculate, random_number, current_time, echo, count_words
-- **Safe expression evaluation** — AST-based `calculate` tool (no `eval()`)
-- **Async-first** — Powered by `httpx` for fast HTTP requests
-- **Type-safe** — Full type hints and dataclass return types
-- **Structured logging** — Configurable via environment variables
-- **Custom exceptions** — Granular error hierarchy for robust error handling
-- **Env configuration** — `.env` file support for runtime settings
+- **8 个内置工具** — hello, fetch_url, add, calculate, random_number, current_time, echo, count_words
+- **安全表达式求值** — 基于 AST 的 `calculate` 工具（不使用 `eval()`）
+- **异步优先** — 基于 `httpx` 实现快速 HTTP 请求
+- **类型安全** — 完整的类型注解
+- **结构化日志** — 通过环境变量可配置
+- **自定义异常** — 分层的异常体系，支持健壮的错误处理
+- **环境配置** — 支持 `.env` 文件加载运行时设置
 
-## Installation
+## 安装
 
 ```bash
 pip install python-mcp-demo
 ```
 
-Or with uv:
+或使用 uv：
 
 ```bash
 uv add python-mcp-demo
 ```
 
-## Quick Start
+## 快速开始
 
-### Run the MCP server
+### 启动服务器
 
 ```bash
 python -m python_mcp_demo
 ```
 
-### Use in your code
+### 使用 MCP 客户端
 
 ```python
 from python_mcp_demo import create_server
 
 server = create_server("my-server")
 
-@server.tool()
-async def my_tool(query: str) -> str:
-    """Custom tool implementation."""
-    return f"You searched for: {query}"
+# 调用 hello
+result = await server.call_tool("hello", {"name": "FastMCP"})
+print(result)  # Hello, FastMCP! Welcome to MCP.
 
-server.run()
+# 计算表达式
+result = await server.call_tool("calculate", {"expression": "sqrt(16) * pi"})
+print(result)  # 12.566370614359172
 ```
 
-## Available Tools
+## 可用工具
 
-| Tool | Description | Parameters | Returns |
-|------|-------------|------------|---------|
-| `hello` | Greet someone | `name` (str, default: "World") | `str` |
-| `fetch_url` | Fetch content from a URL | `url` (str) | `dict` (status, content_preview, content_length) |
-| `add` | Add two numbers | `a` (float), `b` (float) | `float` |
-| `calculate` | Safely evaluate a math expression | `expression` (str) | `float` |
-| `random_number` | Generate a random float | `min` (float, default: 0.0), `max` (float, default: 100.0) | `float` |
-| `current_time` | Get current time in a timezone | `timezone` (str, default: "UTC") | `str` (ISO-8601) |
-| `echo` | Echo a message N times | `message` (str), `times` (int, default: 1) | `list[str]` |
-| `count_words` | Analyse text statistics | `text` (str) | `WordCountResult` dataclass |
-
-### Tool details
-
-#### `hello`
+### hello — 问候
 
 ```python
-result = await server.call_tool("hello", {"name": "Alice"})
-# → "Hello, Alice! Welcome to MCP."
-
-result = await server.call_tool("hello", {})
+await server.call_tool("hello", {"name": "World"})
 # → "Hello, World! Welcome to MCP."
 ```
 
-#### `fetch_url`
+### fetch_url — 抓取 URL
 
 ```python
-result = await server.call_tool("fetch_url", {"url": "https://example.com"})
-# → {"status": 200, "content_preview": "<html>...", "content_length": 1256}
+await server.call_tool("fetch_url", {"url": "https://example.com"})
+# → {"status": 200, "content_preview": "...", "content_length": 1256}
 ```
 
-#### `add`
+### add — 加法
 
 ```python
-result = await server.call_tool("add", {"a": 3.5, "b": 2.5})
-# → 6.0
+await server.call_tool("add", {"a": 3, "b": 4})
+# → 7.0
 ```
 
-#### `calculate`
-
-Safe expression evaluator using AST parsing (not `eval()`).
+### calculate — 安全数学计算
 
 ```python
-result = await server.call_tool("calculate", {"expression": "2 + 3 * 4"})
+await server.call_tool("calculate", {"expression": "2 + 3 * 4"})
 # → 14.0
 
-result = await server.call_tool("calculate", {"expression": "sqrt(16) * pi"})
-# → 12.566370614359172
-
-result = await server.call_tool("calculate", {"expression": "sin(pi/2)"})
-# → 1.0
+await server.call_tool("calculate", {"expression": "sqrt(144) + sin(pi/2)"})
+# → 13.0
 ```
 
-**Supported functions:** `abs`, `ceil`, `cos`, `degrees`, `exp`, `floor`,
-`isinf`, `isnan`, `log`, `log10`, `max`, `min`, `radians`, `round`, `sin`,
-`sqrt`, `tan`
+支持：`+`, `-`, `*`, `/`, `**`, `%`, `//`, `()`, `sqrt`, `sin`, `cos`, `log`, `floor`, `ceil`, `abs`, `round`, `pi`, `e` 等。
 
-**Constants:** `e`, `pi`, `tau`
-
-#### `random_number`
+### random_number — 随机数
 
 ```python
-result = await server.call_tool("random_number", {"min": 1.0, "max": 10.0})
-# → 4.7238456921... (random)
+await server.call_tool("random_number", {"min": 0.0, "max": 10.0})
+# → 5.3421...
 ```
 
-#### `current_time`
+### current_time — 当前时间
 
 ```python
-result = await server.call_tool("current_time", {"timezone": "Asia/Shanghai"})
-# → "2026-07-04T20:30:00+08:00"
-
-result = await server.call_tool("current_time", {"timezone": "US/Eastern"})
-# → "2026-07-04T08:30:00-04:00"
+await server.call_tool("current_time", {"timezone": "Asia/Shanghai"})
+# → "2026-07-04 13:00:00"
 ```
 
-#### `echo`
+### echo — 回显
 
 ```python
-result = await server.call_tool("echo", {"message": "hi", "times": 3})
-# → ["hi", "hi", "hi"]
+await server.call_tool("echo", {"message": "你好", "times": 3})
+# → ["你好", "你好", "你好"]
 ```
 
-#### `count_words`
+### count_words — 文本统计
 
 ```python
-result = await server.call_tool("count_words", {"text": "hello world hello"})
-# → WordCountResult(word_count=3, char_count=18, line_count=1, top_words=[("hello", 2), ("world", 1)])
+await server.call_tool("count_words", {"text": "hello world hello"})
+# → {"char_count": 17, "word_count": 3, "line_count": 1, "top_words": {"hello": 2, "world": 1}}
 ```
 
-## Configuration
+## 配置
 
-Settings are read from environment variables and can be overridden
-via a `.env` file:
+通过环境变量配置（参见 `.env.example`）：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `MCP_SERVER_NAME` | `python-mcp-demo` | MCP 服务器名称 |
+| `MCP_LOG_LEVEL` | `INFO` | 日志级别 |
+| `MCP_REQUEST_TIMEOUT` | `30` | HTTP 请求超时（秒） |
+| `MCP_MAX_FETCH_SIZE` | `5000` | fetch_url 内容预览最大字节数 |
+
+## 开发
 
 ```bash
-# Copy the example and edit
-cp .env.example .env
-```
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MCP_SERVER_NAME` | `python-mcp-demo` | Name exposed by the MCP server |
-| `MCP_LOG_LEVEL` | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
-| `MCP_REQUEST_TIMEOUT` | `30` | HTTP request timeout in seconds |
-| `MCP_MAX_FETCH_SIZE` | `5000` | Max characters in content preview |
-
-## Exception Hierarchy
-
-```
-MCPDemoError
-├── ConfigurationError    — Configuration loading failures
-├── MCPToolError          — User-level tool errors (invalid input, etc.)
-│   ├── MathExpressionError — Invalid/unsafe math expressions
-│   └── FetchError        — URL fetch failures
-```
-
-## Development
-
-### Prerequisites
-
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/)
-
-### Setup
-
-```bash
-# Clone the repo
-git clone https://github.com/ttzhengy/python-mcp-demo.git
-cd python-mcp-demo
-
-# Create virtual environment and install dependencies
+# 安装依赖
 uv sync
 
-# Run tests
+# 运行测试
 uv run pytest -v
 
-# Run the server
+# 带覆盖率
+uv run pytest -v --cov=python_mcp_demo --cov-report=term-missing
+
+# 代码检查
+uv run ruff check src/ tests/
+
+# 启动服务器
 uv run python -m python_mcp_demo
 ```
 
-### Makefile commands
-
-```bash
-make install        # Install dependencies
-make test           # Run tests
-make test-coverage  # Run tests with coverage report
-make run            # Start the MCP server
-make lint           # Lint with ruff
-make format         # Format with ruff
-make clean          # Remove build artifacts
-```
-
-## Project Structure
-
-```
-python-mcp-demo/
-├── pyproject.toml
-├── .env.example
-├── Makefile
-├── README.md
-├── src/
-│   └── python_mcp_demo/
-│       ├── __init__.py      # Package exports
-│       ├── __main__.py      # CLI entry point
-│       ├── config.py        # Environment configuration
-│       ├── exceptions.py    # Custom exception hierarchy
-│       ├── models.py        # Dataclass return types
-│       └── server.py        # FastMCP server + all tools
-└── tests/
-    └── test_demo.py         # Comprehensive test suite
-```
-
-## Requirements
-
-- Python >= 3.12
-- fastmcp >= 0.6.0
-- httpx >= 0.28.0
-
-## License
+## 许可证
 
 MIT

@@ -1,4 +1,4 @@
-"""Configuration for python-mcp-demo."""
+"""python-mcp-demo 配置模块。"""
 
 import os
 from dataclasses import dataclass, field

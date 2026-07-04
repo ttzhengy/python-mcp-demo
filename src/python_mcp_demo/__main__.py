@@ -1,6 +1,6 @@
-"""CLI entry point for python-mcp-demo.
+"""python-mcp-demo CLI 入口点。
 
-Usage::
+用法::
 
     python -m python_mcp_demo
 """
