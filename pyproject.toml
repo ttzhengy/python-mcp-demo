@@ -1,20 +1,21 @@
 [project]
 name = "python-mcp-demo"
-version = "0.1.0"
-description = "A demonstration MCP (Model Context Protocol) server library built with FastMCP"
+version = "0.2.0"
+description = "A production-ready MCP (Model Context Protocol) server library built with FastMCP"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [
     { name = "ttzhengy", email = "303980015@qq.com" },
 ]
-keywords = ["mcp", "model-context-protocol", "fastmcp", "ai", "llm"]
+keywords = ["mcp", "model-context-protocol", "fastmcp", "ai", "llm", "tools"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
@@ -44,3 +45,4 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+python_files = ["test_*.py"]
