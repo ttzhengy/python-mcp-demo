@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo, available_timezones
 
 import httpx
 
-from python_mcp_demo.config import load_config
+from python_mcp_demo.config import settings as mcp_settings
 from python_mcp_demo.exceptions import (
     MathExpressionError,
     MCPToolError,
@@ -193,14 +193,13 @@ def create_server(name: str | None = None) -> FastMCP:
             "fastmcp 未安装。请运行: uv add fastmcp"
         )
 
-    config = load_config()
-    server = FastMCP(name or config.server_name)
+    server = FastMCP(name or mcp_settings.server_name)
 
     logger.info(
         "正在创建 MCP 服务器 '%s' (日志级别=%s, 超时=%ds)",
-        name or config.server_name,
-        config.log_level,
-        config.request_timeout,
+        name or mcp_settings.server_name,
+        mcp_settings.log_level,
+        mcp_settings.request_timeout,
     )
 
     # ═══════════════════════════════════════════════════════════════
@@ -244,7 +243,7 @@ def create_server(name: str | None = None) -> FastMCP:
         logger.info("正在抓取 URL: %s", url)
         try:
             async with httpx.AsyncClient(
-                timeout=httpx.Timeout(config.request_timeout),
+                timeout=httpx.Timeout(mcp_settings.request_timeout),
                 follow_redirects=True,
             ) as client:
                 response = await client.get(url)
@@ -258,7 +257,7 @@ def create_server(name: str | None = None) -> FastMCP:
                 )
                 return {
                     "status": response.status_code,
-                    "content_preview": text[: config.max_fetch_size],
+                    "content_preview": text[: mcp_settings.max_fetch_size],
                     "content_length": len(text),
                 }
         except httpx.HTTPStatusError as exc:

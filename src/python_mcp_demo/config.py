@@ -1,19 +1,84 @@
-"""python-mcp-demo 配置模块。"""
+"""AI 办公助手 — 配置管理（基于 pydantic-settings）。
 
-import os
-from dataclasses import dataclass, field
+配置优先级：环境变量 > .env 文件 > 默认值
+所有环境变量以 MCP_ 为前缀。
+"""
 
-@dataclass
-class MCPConfig:
-    server_name: str = "python-mcp-demo"
-    request_timeout: int = 30
+from __future__ import annotations
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """AI 办公助手全局配置。
+
+    从环境变量（MCP_ 前缀）或 .env 文件加载。
+    """
+
+    # ── 服务器 ──────────────────────────────────────────────
+    server_name: str = "ai-office-mcp"
+    """FastMCP 服务器名称，供 Dify 识别。"""
+
+    host: str = "0.0.0.0"
+    """监听地址。"""
+
+    port: int = 8000
+    """监听端口。"""
+
+    # ── 后端 API ────────────────────────────────────────────
+    backend_base_url: str = "http://localhost:8080"
+    """Java 后端服务基础 URL。"""
+
+    backend_auth_url: str = "http://localhost:8080/api/auth/verify"
+    """认证服务 API URL（用于 verify_token 前置校验）。"""
+
+    # ── 日志 ────────────────────────────────────────────────
     log_level: str = "INFO"
-    max_fetch_size: int = 500
+    """日志级别：DEBUG | INFO | WARNING | ERROR | CRITICAL。"""
 
-def load_config() -> MCPConfig:
-    return MCPConfig(
-        server_name=os.getenv("MCP_SERVER_NAME", "python-mcp-demo"),
-        request_timeout=int(os.getenv("MCP_REQUEST_TIMEOUT", "30")),
-        log_level=os.getenv("MCP_LOG_LEVEL", "INFO").upper(),
-        max_fetch_size=int(os.getenv("MCP_MAX_FETCH_SIZE", "500")),
+    log_json: bool = True
+    """是否输出 JSON 结构化日志（vs 人类可读格式）。"""
+
+    # ── 超时 ────────────────────────────────────────────────
+    request_timeout: int = 20
+    """HTTP 请求读超时（秒）。"""
+
+    connect_timeout: int = 5
+    """HTTP 连接超时（秒）。"""
+
+    # ── 重试 ────────────────────────────────────────────────
+    max_retries: int = 3
+    """后端 5xx 错误时的最大重试次数。"""
+
+    retry_min_delay: float = 1.0
+    """重试最小间隔（秒，指数退避起始值）。"""
+
+    retry_max_delay: float = 8.0
+    """重试最大间隔（秒）。"""
+
+    # ── 安全 ────────────────────────────────────────────────
+    token_mask_prefix_len: int = 8
+    """Token 脱敏时保留的前缀字符数。"""
+
+    # ── 兼容字段（来自原有 server.py 的 fetch demo） ──
+    max_fetch_size: int = 5000
+    """fetch_url 工具内容预览的最大字节数（兼容旧版 demo）。"""
+
+    model_config = SettingsConfigDict(
+        env_prefix="MCP_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
     )
+
+
+#: 全局单例设置实例
+settings = Settings()
+
+
+def load_settings() -> Settings:
+    """返回全局 Settings 单例。
+
+    在模块初始化时自动加载环境变量和 .env 文件。
+    """
+    return settings

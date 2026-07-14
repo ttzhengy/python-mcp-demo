@@ -19,3 +19,6 @@ Thumbs.db
 
 # uv
 uv.lock
+
+# Environment (local overrides)
+.env
