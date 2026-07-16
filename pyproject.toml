@@ -1,7 +1,7 @@
 [project]
 name = "python-mcp-demo"
 version = "0.3.0"
-description = "AI 办公助手 MCP 服务器 — 连接 Dify 工作流与 Java 后端"
+description = "基于 FastMCP 的生产级 MCP 服务器库，内置 8 个实用工具 + Dify 工作流表单查询 POC"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
