@@ -1,17 +1,18 @@
 """AI 办公助手 POC — FastAPI + FastMCP 服务器入口。
 
-将 FastMCP 挂载到 FastAPI 上，统一管理路由和生命周期。
+将 FastMCP 挂载到 FastAPI 上，整个服务以 ``/obot`` 为上下文根。
 
 用法::
 
-    python -m python_mcp_demo          # FastAPI + Uvicorn（推荐）
-    python -m python_mcp_demo.main     # 旧式直接启动（兼容）
+    python -m python_mcp_demo
 
 暴露接口::
 
-  /obot/sse       MCP SSE 协议流端点
-  /obot/messages  MCP 消息投递端点
-  /health         FastAPI 健康探针
+  /obot/health         健康探针
+  /obot/docs           FastAPI OpenAPI 文档
+  /obot/openapi.json   OpenAPI Schema
+  /obot/mcp/sse        MCP SSE 协议流端点
+  /obot/mcp/messages   MCP 消息投递端点
 """
 
 from __future__ import annotations
@@ -22,6 +23,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastmcp import FastMCP
+from starlette.applications import Starlette
+from starlette.routing import Mount
 
 from python_mcp_demo.auth import AuthMiddleware
 from python_mcp_demo.config import settings
@@ -153,64 +156,83 @@ def create_server(name: str | None = None) -> FastMCP:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# FastAPI 应用工厂
+# 应用工厂
 # ═══════════════════════════════════════════════════════════════════
 
 
-@asynccontextmanager
-async def _lifespan(fastapi_app: FastAPI):
-    """FastAPI 生命周期钩子。"""
-    logger.info(
-        "🚀 AI 办公助手 POC 启动: {name} @ /obot",
-        name=fastapi_app.title,
-    )
-    yield
-    logger.info("⏹️  服务器关闭")
+def create_app(name: str | None = None) -> Starlette:
+    """创建并配置整个应用。
 
+    架构::
 
-def create_app(name: str | None = None) -> FastAPI:
-    """创建并配置 FastAPI 应用。
+        ┌────────────────────────────────────────┐
+        │  Starlette (外层)                       │
+        │  Mount("/obot", app=inner_fastapi)      │
+        │  ┌────────────────────────────────┐     │
+        │  │  FastAPI (内层)                 │     │
+        │  │  GET /health                   │     │
+        │  │  GET /docs                     │     │
+        │  │  mount("/mcp", mcp_sse_app)    │     │
+        │  │  ┌───────────────────────┐     │     │
+        │  │  │  FastMCP SSE ASGI     │     │     │
+        │  │  │  /sse, /messages      │     │     │
+        │  │  └───────────────────────┘     │     │
+        │  └────────────────────────────────┘     │
+        └────────────────────────────────────────┘
 
-    步骤::
+    对外路径::
 
-        1. 创建 FastMCP 服务器（含 ``query_forms`` 工具）
-        2. 以 SSE 传输模式挂载 MCP 到 ``/obot`` 上下文根
-        3. 注册 ``GET /health`` 健康探针
+        /obot/health          ← FastAPI 健康探针
+        /obot/docs            ← OpenAPI 文档页
+        /obot/openapi.json    ← OpenAPI Schema
+        /obot/mcp/sse         ← MCP SSE 协议流
+        /obot/mcp/messages    ← MCP 消息投递
 
     Args:
         name: 可选的服务器名称。默认从配置加载。
 
     Returns:
-        配置好的 FastAPI 实例，可直接用于 uvicorn。
+        配置好的 ``Starlette`` 实例，可直接用于 uvicorn。
     """
-    # ── 1. 创建 MCP 服务器并获取其 ASGI 应用 ──
-    mcp_server = create_server(name)
-    mcp_asgi = mcp_server.http_app(transport="sse")
-
-    # ── 2. 创建 FastAPI 应用 ──
-    app = FastAPI(
+    # ── 1. 内层 FastAPI 应用（所有路由以 / 注册） ──
+    inner = FastAPI(
         title=name or settings.server_name,
         version="0.3.0",
-        lifespan=_lifespan,
     )
 
-    # 挂载 MCP — SSE 端点: /obot/sse, /obot/messages
-    app.mount("/obot", mcp_asgi, name="mcp")
-
-    # ── 3. 健康探针 ──
-    @app.get("/health")
+    @inner.get("/health")
     async def health():
         """健康检查（K8s / 负载均衡探针）。
 
         Returns:
             {"status": "healthy", "server": "服务器名称"}
         """
-        return {"status": "healthy", "server": app.title}
+        return {"status": "healthy", "server": inner.title}
+
+    # ── 2. 创建 MCP 服务器并挂载到内层 FastAPI ──
+    mcp_server = create_server(name)
+    mcp_asgi = mcp_server.http_app(transport="sse")
+    inner.mount("/mcp", mcp_asgi, name="mcp")
+
+    # ── 3. 外层 ASGI 应用，将内层挂载到 /obot 上下文根 ──
+    @asynccontextmanager
+    async def _lifespan(_app: Starlette):
+        logger.info(
+            "🚀 AI 办公助手 POC 启动: {name} @ /obot",
+            name=inner.title,
+        )
+        yield
+        logger.info("⏹️  服务器关闭")
+
+    app = Starlette(
+        routes=[Mount("/obot", app=inner)],
+        lifespan=_lifespan,
+    )
 
     return app
 
 
-#: Uvicorn 使用的 FastAPI 应用单例
+#: Uvicorn 使用的应用单例
 app = create_app()
 
 if __name__ == "__main__":
