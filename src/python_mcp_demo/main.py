@@ -1,21 +1,26 @@
-"""AI 办公助手 POC — FastMCP 服务器入口。
+"""AI 办公助手 POC — FastAPI + FastMCP 服务器入口。
 
-暴露 query_forms MCP Tool，供 Dify Agent 工作流调用。
+将 FastMCP 挂载到 FastAPI 上，统一管理路由和生命周期。
 
-目标链路：Dify Agent → MCP 协议 (SSE) → FastMCP → HTTP API → Java 后端
+用法::
 
-架构约束：
-  - 存量零改造：Java 后端不做任何变更
-  - 用户身份代理：透传用户 JWT，MCP 层仅做 token 前置校验
-  - Cookie 隔离：cookie 不进入 Dify / LLM
-  - 审计标记：HTTP Header 添加 X-AI-Agent
+    python -m python_mcp_demo          # FastAPI + Uvicorn（推荐）
+    python -m python_mcp_demo.main     # 旧式直接启动（兼容）
+
+暴露接口::
+
+  /obot/sse       MCP SSE 协议流端点
+  /obot/messages  MCP 消息投递端点
+  /health         FastAPI 健康探针
 """
 
 from __future__ import annotations
 
 import time
 import uuid
+from contextlib import asynccontextmanager
 
+from fastapi import FastAPI
 from fastmcp import FastMCP
 
 from python_mcp_demo.auth import AuthMiddleware
@@ -36,6 +41,11 @@ form_engine = FormEngineAdapter(
     connect_timeout=settings.connect_timeout,
     max_retries=settings.max_retries,
 )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MCP 服务器工厂
+# ═══════════════════════════════════════════════════════════════════
 
 
 def create_server(name: str | None = None) -> FastMCP:
@@ -142,14 +152,72 @@ def create_server(name: str | None = None) -> FastMCP:
     return server
 
 
-#: CLI 入口使用的服务器单例
-mcp = create_server()
+# ═══════════════════════════════════════════════════════════════════
+# FastAPI 应用工厂
+# ═══════════════════════════════════════════════════════════════════
+
+
+@asynccontextmanager
+async def _lifespan(fastapi_app: FastAPI):
+    """FastAPI 生命周期钩子。"""
+    logger.info(
+        "🚀 AI 办公助手 POC 启动: {name} @ /obot",
+        name=fastapi_app.title,
+    )
+    yield
+    logger.info("⏹️  服务器关闭")
+
+
+def create_app(name: str | None = None) -> FastAPI:
+    """创建并配置 FastAPI 应用。
+
+    步骤::
+
+        1. 创建 FastMCP 服务器（含 ``query_forms`` 工具）
+        2. 以 SSE 传输模式挂载 MCP 到 ``/obot`` 上下文根
+        3. 注册 ``GET /health`` 健康探针
+
+    Args:
+        name: 可选的服务器名称。默认从配置加载。
+
+    Returns:
+        配置好的 FastAPI 实例，可直接用于 uvicorn。
+    """
+    # ── 1. 创建 MCP 服务器并获取其 ASGI 应用 ──
+    mcp_server = create_server(name)
+    mcp_asgi = mcp_server.http_app(transport="sse")
+
+    # ── 2. 创建 FastAPI 应用 ──
+    app = FastAPI(
+        title=name or settings.server_name,
+        version="0.3.0",
+        lifespan=_lifespan,
+    )
+
+    # 挂载 MCP — SSE 端点: /obot/sse, /obot/messages
+    app.mount("/obot", mcp_asgi, name="mcp")
+
+    # ── 3. 健康探针 ──
+    @app.get("/health")
+    async def health():
+        """健康检查（K8s / 负载均衡探针）。
+
+        Returns:
+            {"status": "healthy", "server": "服务器名称"}
+        """
+        return {"status": "healthy", "server": app.title}
+
+    return app
+
+
+#: Uvicorn 使用的 FastAPI 应用单例
+app = create_app()
 
 if __name__ == "__main__":
-    logger.info(
-        "🚀 AI 办公助手 POC 服务器启动: {name} @ {host}:{port}",
-        name=settings.server_name,
+    import uvicorn
+
+    uvicorn.run(
+        "python_mcp_demo.main:app",
         host=settings.host,
         port=settings.port,
     )
-    mcp.run(transport="sse", host=settings.host, port=settings.port)
