@@ -7,7 +7,7 @@ from python_mcp_demo import create_server, __version__
 
 def test_version():
     """验证包版本号。"""
-    assert __version__ == "0.3.0"
+    assert __version__ == "0.4.0"
 
 
 @pytest.fixture

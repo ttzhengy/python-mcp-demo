@@ -22,3 +22,4 @@ uv.lock
 
 # Environment (local overrides)
 .env
+logs/

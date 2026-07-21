@@ -1,6 +1,7 @@
 """loguru 结构化日志配置。
 
-输出 JSON 格式的结构化日志到 stdout，每条日志包含：
+输出 JSON 格式的结构化日志到 stdout，以及日志文件轮转。
+每条日志包含：
   - timestamp, level, trace_id, tool_name, user_id
   - duration_ms, status_code, message
   - 敏感字段（user_token）脱敏：仅保留前 N 字符
@@ -11,6 +12,7 @@ from __future__ import annotations
 import json
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 from loguru import logger
 
@@ -44,6 +46,20 @@ def setup_logging(log_level: str = "INFO", json_format: bool = True) -> None:
             ),
             level=log_level.upper(),
         )
+
+    # 文件日志输出：logs/python-mcp-demo.log，自动轮转（10MB/5 备份）
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    logger.add(
+        sink=str(log_dir / "python-mcp-demo.log"),
+        format="{message}" if json_format else (
+            "{time:YYYY-MM-DD HH:mm:ss} | {level: <7} | {message}"
+        ),
+        level=log_level.upper(),
+        rotation="10 MB",
+        retention=5,
+        encoding="utf-8",
+    )
 
 
 def mask_token(token: str, prefix_len: int = 8) -> str:
