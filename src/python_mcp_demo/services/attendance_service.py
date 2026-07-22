@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from python_mcp_demo.adapters.attendance_api import AttendanceApiAdapter
+from python_mcp_demo.models.vo import ApiResponse, ListResponse
 
 
 class AttendanceService:
@@ -21,25 +22,25 @@ class AttendanceService:
     def __init__(self, adapter: AttendanceApiAdapter) -> None:
         self._adapter = adapter
 
-    async def clock_in(self, token: str) -> dict:
+    async def clock_in(self, token: str) -> ApiResponse:
         """上班签到。
 
         Args:
             token: 用户 JWT Token。
 
         Returns:
-            统一格式的响应字典。
+            ``ApiResponse`` 实体。
         """
         return await self._adapter.clock_in(token=token)
 
-    async def clock_out(self, token: str) -> dict:
+    async def clock_out(self, token: str) -> ApiResponse:
         """下班签退。
 
         Args:
             token: 用户 JWT Token。
 
         Returns:
-            统一格式的响应字典。
+            ``ApiResponse`` 实体。
         """
         return await self._adapter.clock_out(token=token)
 
@@ -50,7 +51,7 @@ class AttendanceService:
         date_from: str,
         date_to: str,
         reason: str,
-    ) -> dict:
+    ) -> ApiResponse:
         """请假申请。
 
         Args:
@@ -61,7 +62,7 @@ class AttendanceService:
             reason: 请假原因。
 
         Returns:
-            统一格式的响应字典。
+            ``ApiResponse`` 实体。
         """
         return await self._adapter.leave_apply(
             token=token,
@@ -78,7 +79,7 @@ class AttendanceService:
         date_to: str | None = None,
         status: str | None = None,
         limit: int = 10,
-    ) -> dict:
+    ) -> ListResponse:
         """查询考勤记录。
 
         Args:
@@ -89,7 +90,7 @@ class AttendanceService:
             limit: 返回条数上限，默认 10。
 
         Returns:
-            统一格式的响应字典。
+            ``ListResponse`` 实体。
         """
         effective_limit = min(limit, 100)
         return await self._adapter.query_records(
@@ -107,7 +108,7 @@ class AttendanceService:
         date_to: str | None = None,
         status: str | None = None,
         limit: int = 10,
-    ) -> dict:
+    ) -> ListResponse:
         """查询请假记录。
 
         Args:
@@ -118,7 +119,7 @@ class AttendanceService:
             limit: 返回条数上限，默认 10。
 
         Returns:
-            统一格式的响应字典。
+            ``ListResponse`` 实体。
         """
         effective_limit = min(limit, 100)
         return await self._adapter.query_leave(

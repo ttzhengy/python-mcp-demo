@@ -1,17 +1,14 @@
 """考勤操作工具 — FastMCP tool 定义。
 
-薄封装层：参数解析 → 调用 service → 格式化返回。
+薄封装层：参数解析 → 调用 service → 日志 → 格式化返回。
 """
 
 from __future__ import annotations
 
-import time
-import uuid
-
 from fastmcp import FastMCP
 
 from python_mcp_demo.auth import AuthMiddleware
-from python_mcp_demo.logging_ import log_json
+from python_mcp_demo.core.logging_helper import ToolLogger
 from python_mcp_demo.services.attendance_service import AttendanceService
 
 
@@ -40,32 +37,20 @@ def register_tools(
         Returns:
             {"success": bool, "data": dict | None, "error": str | None}
         """
-        trace_id = uuid.uuid4().hex[:12]
-        tool_name = "clock_in"
-        start_time = time.time()
+        async with ToolLogger("clock_in", user_token=user_token) as log_ctx:
+            if not user_token or not user_token.strip():
+                log_ctx.set_error("Token 为空")
+                return {"success": False, "data": None, "error": "缺少用户认证信息，请重新登录后重试"}
 
-        if not user_token or not user_token.strip():
-            elapsed = int((time.time() - start_time) * 1000)
-            log_json("WARN", trace_id, tool_name, elapsed, "error", error="Token 为空")
-            return {"success": False, "data": None, "error": "缺少用户认证信息，请重新登录后重试"}
+            verify_result = await auth_middleware.verify_token(user_token)
+            if not verify_result.valid:
+                log_ctx.set_error(verify_result.error)
+                return {"success": False, "data": None, "error": verify_result.error}
+            log_ctx.set_user_id(verify_result.user_id)
 
-        verify_result = await auth_middleware.verify_token(user_token)
-        if not verify_result.valid:
-            elapsed = int((time.time() - start_time) * 1000)
-            log_json("WARN", trace_id, tool_name, elapsed, "auth_failed",
-                     user_token=user_token, error=verify_result.error)
-            return {"success": False, "data": None, "error": verify_result.error}
-
-        result = await attendance_service.clock_in(token=user_token)
-
-        elapsed = int((time.time() - start_time) * 1000)
-        log_level = "INFO" if result["success"] else "ERROR"
-        log_status = "success" if result["success"] else "error"
-        log_json(log_level, trace_id, tool_name, elapsed, log_status,
-                 user_token=user_token, user_id=verify_result.user_id,
-                 error=result.get("error"))
-
-        return result
+            result = await attendance_service.clock_in(token=user_token)
+            log_ctx.set_result(result)
+            return result.to_dict() if not isinstance(result, dict) else result
 
     @server.tool()
     async def clock_out(user_token: str) -> dict:
@@ -79,32 +64,20 @@ def register_tools(
         Returns:
             {"success": bool, "data": dict | None, "error": str | None}
         """
-        trace_id = uuid.uuid4().hex[:12]
-        tool_name = "clock_out"
-        start_time = time.time()
+        async with ToolLogger("clock_out", user_token=user_token) as log_ctx:
+            if not user_token or not user_token.strip():
+                log_ctx.set_error("Token 为空")
+                return {"success": False, "data": None, "error": "缺少用户认证信息，请重新登录后重试"}
 
-        if not user_token or not user_token.strip():
-            elapsed = int((time.time() - start_time) * 1000)
-            log_json("WARN", trace_id, tool_name, elapsed, "error", error="Token 为空")
-            return {"success": False, "data": None, "error": "缺少用户认证信息，请重新登录后重试"}
+            verify_result = await auth_middleware.verify_token(user_token)
+            if not verify_result.valid:
+                log_ctx.set_error(verify_result.error)
+                return {"success": False, "data": None, "error": verify_result.error}
+            log_ctx.set_user_id(verify_result.user_id)
 
-        verify_result = await auth_middleware.verify_token(user_token)
-        if not verify_result.valid:
-            elapsed = int((time.time() - start_time) * 1000)
-            log_json("WARN", trace_id, tool_name, elapsed, "auth_failed",
-                     user_token=user_token, error=verify_result.error)
-            return {"success": False, "data": None, "error": verify_result.error}
-
-        result = await attendance_service.clock_out(token=user_token)
-
-        elapsed = int((time.time() - start_time) * 1000)
-        log_level = "INFO" if result["success"] else "ERROR"
-        log_status = "success" if result["success"] else "error"
-        log_json(log_level, trace_id, tool_name, elapsed, log_status,
-                 user_token=user_token, user_id=verify_result.user_id,
-                 error=result.get("error"))
-
-        return result
+            result = await attendance_service.clock_out(token=user_token)
+            log_ctx.set_result(result)
+            return result.to_dict() if not isinstance(result, dict) else result
 
     @server.tool()
     async def leave_apply(
@@ -126,45 +99,37 @@ def register_tools(
         Returns:
             {"success": bool, "data": dict | None, "error": str | None}
         """
-        trace_id = uuid.uuid4().hex[:12]
-        tool_name = "leave_apply"
-        start_time = time.time()
+        async with ToolLogger("leave_apply", user_token=user_token) as log_ctx:
+            # ── 参数校验 ──
+            if not leave_type:
+                log_ctx.set_error("请假类型不能为空")
+                return {"success": False, "data": None, "error": "请假类型不能为空"}
+            if not date_from:
+                log_ctx.set_error("开始日期不能为空")
+                return {"success": False, "data": None, "error": "开始日期不能为空"}
+            if not date_to:
+                log_ctx.set_error("结束日期不能为空")
+                return {"success": False, "data": None, "error": "结束日期不能为空"}
+            if not reason:
+                log_ctx.set_error("请假原因不能为空")
+                return {"success": False, "data": None, "error": "请假原因不能为空"}
 
-        if not user_token or not user_token.strip():
-            elapsed = int((time.time() - start_time) * 1000)
-            log_json("WARN", trace_id, tool_name, elapsed, "error", error="Token 为空")
-            return {"success": False, "data": None, "error": "缺少用户认证信息，请重新登录后重试"}
+            if not user_token or not user_token.strip():
+                log_ctx.set_error("Token 为空")
+                return {"success": False, "data": None, "error": "缺少用户认证信息，请重新登录后重试"}
 
-        # 参数校验
-        if not leave_type:
-            return {"success": False, "data": None, "error": "请假类型不能为空"}
-        if not date_from:
-            return {"success": False, "data": None, "error": "开始日期不能为空"}
-        if not date_to:
-            return {"success": False, "data": None, "error": "结束日期不能为空"}
-        if not reason:
-            return {"success": False, "data": None, "error": "请假原因不能为空"}
+            verify_result = await auth_middleware.verify_token(user_token)
+            if not verify_result.valid:
+                log_ctx.set_error(verify_result.error)
+                return {"success": False, "data": None, "error": verify_result.error}
+            log_ctx.set_user_id(verify_result.user_id)
 
-        verify_result = await auth_middleware.verify_token(user_token)
-        if not verify_result.valid:
-            elapsed = int((time.time() - start_time) * 1000)
-            log_json("WARN", trace_id, tool_name, elapsed, "auth_failed",
-                     user_token=user_token, error=verify_result.error)
-            return {"success": False, "data": None, "error": verify_result.error}
-
-        result = await attendance_service.leave_apply(
-            token=user_token,
-            leave_type=leave_type,
-            date_from=date_from,
-            date_to=date_to,
-            reason=reason,
-        )
-
-        elapsed = int((time.time() - start_time) * 1000)
-        log_level = "INFO" if result["success"] else "ERROR"
-        log_status = "success" if result["success"] else "error"
-        log_json(log_level, trace_id, tool_name, elapsed, log_status,
-                 user_token=user_token, user_id=verify_result.user_id,
-                 error=result.get("error"))
-
-        return result
+            result = await attendance_service.leave_apply(
+                token=user_token,
+                leave_type=leave_type,
+                date_from=date_from,
+                date_to=date_to,
+                reason=reason,
+            )
+            log_ctx.set_result(result)
+            return result.to_dict() if not isinstance(result, dict) else result

@@ -1,15 +1,16 @@
 """考勤服务 HTTP API 适配器。
 
 封装对考勤后端服务的 HTTP 调用。
-遵循与 FormApiAdapter 相同的设计模式。
+基于 ``BaseHttpClient._call_api`` 统一处理异常和日志。
+Business 方法返回类型约束的 VO 实体类（``ApiResponse`` / ``ListResponse``）。
 """
 
 from __future__ import annotations
 
-import httpx
+from typing import cast
 
 from python_mcp_demo.core.http_client import BaseHttpClient
-from python_mcp_demo.logging_ import logger
+from python_mcp_demo.models.vo import ApiResponse, ListResponse
 from python_mcp_demo.urls import APIUrls
 
 
@@ -17,53 +18,44 @@ class AttendanceApiAdapter(BaseHttpClient):
     """考勤服务 HTTP API 客户端。
 
     支持签到、签退、请假申请和考勤记录查询。
+    每个业务方法通过 ``_call_api`` 统一处理 HTTP 通信和错误日志。
     """
 
-    async def clock_in(self, token: str) -> dict:
+    async def clock_in(self, token: str) -> ApiResponse:
         """上班签到。
 
         Args:
             token: 用户 JWT Token。
 
         Returns:
-            包含 success、data 和 error 字段的字典。
+            ``ApiResponse`` 实体。
         """
-        try:
-            result = await self._do_request(
-                method="POST",
-                path=APIUrls.CLOCK_IN,
-                token=token,
-            )
-            return self._parse_simple_response(result)
-        except httpx.TimeoutException:
-            logger.warning("签到请求超时")
-            return {"success": False, "data": None, "error": "签到超时，请稍后重试"}
-        except httpx.RequestError as exc:
-            logger.error("考勤服务不可达: {error}", error=str(exc))
-            return {"success": False, "data": None, "error": "考勤服务暂时不可用，请稍后重试"}
+        return await self._call_api(
+            method="POST",
+            path=APIUrls.CLOCK_IN,
+            parse_func=self._parse_simple_response,
+            token=token,
+            action_name="签到",
+            service_name="考勤服务",
+        )
 
-    async def clock_out(self, token: str) -> dict:
+    async def clock_out(self, token: str) -> ApiResponse:
         """下班签退。
 
         Args:
             token: 用户 JWT Token。
 
         Returns:
-            包含 success、data 和 error 字段的字典。
+            ``ApiResponse`` 实体。
         """
-        try:
-            result = await self._do_request(
-                method="POST",
-                path=APIUrls.CLOCK_OUT,
-                token=token,
-            )
-            return self._parse_simple_response(result)
-        except httpx.TimeoutException:
-            logger.warning("签退请求超时")
-            return {"success": False, "data": None, "error": "签退超时，请稍后重试"}
-        except httpx.RequestError as exc:
-            logger.error("考勤服务不可达: {error}", error=str(exc))
-            return {"success": False, "data": None, "error": "考勤服务暂时不可用，请稍后重试"}
+        return await self._call_api(
+            method="POST",
+            path=APIUrls.CLOCK_OUT,
+            parse_func=self._parse_simple_response,
+            token=token,
+            action_name="签退",
+            service_name="考勤服务",
+        )
 
     async def leave_apply(
         self,
@@ -72,7 +64,7 @@ class AttendanceApiAdapter(BaseHttpClient):
         date_from: str,
         date_to: str,
         reason: str,
-    ) -> dict:
+    ) -> ApiResponse:
         """请假申请。
 
         Args:
@@ -83,27 +75,22 @@ class AttendanceApiAdapter(BaseHttpClient):
             reason: 请假原因。
 
         Returns:
-            包含 success、data 和 error 字段的字典。
+            ``ApiResponse`` 实体。
         """
-        try:
-            result = await self._do_request(
-                method="POST",
-                path=APIUrls.LEAVE_APPLY,
-                json_data={
-                    "leave_type": leave_type,
-                    "date_from": date_from,
-                    "date_to": date_to,
-                    "reason": reason,
-                },
-                token=token,
-            )
-            return self._parse_simple_response(result)
-        except httpx.TimeoutException:
-            logger.warning("请假申请超时")
-            return {"success": False, "data": None, "error": "请假申请超时，请稍后重试"}
-        except httpx.RequestError as exc:
-            logger.error("考勤服务不可达: {error}", error=str(exc))
-            return {"success": False, "data": None, "error": "考勤服务暂时不可用，请稍后重试"}
+        return await self._call_api(
+            method="POST",
+            path=APIUrls.LEAVE_APPLY,
+            parse_func=self._parse_simple_response,
+            json_data={
+                "leave_type": leave_type,
+                "date_from": date_from,
+                "date_to": date_to,
+                "reason": reason,
+            },
+            token=token,
+            action_name="请假申请",
+            service_name="考勤服务",
+        )
 
     async def query_records(
         self,
@@ -112,7 +99,7 @@ class AttendanceApiAdapter(BaseHttpClient):
         date_to: str | None = None,
         status: str | None = None,
         limit: int = 10,
-    ) -> dict:
+    ) -> ListResponse:
         """查询考勤记录。
 
         Args:
@@ -123,7 +110,7 @@ class AttendanceApiAdapter(BaseHttpClient):
             limit: 返回条数上限，默认 10。
 
         Returns:
-            包含 success、data 和 error 字段的字典。
+            ``ListResponse`` 实体。
         """
         params: dict[str, str | int] = {"limit": limit}
         if date_from:
@@ -133,20 +120,15 @@ class AttendanceApiAdapter(BaseHttpClient):
         if status:
             params["status"] = status
 
-        try:
-            result = await self._do_request(
-                method="GET",
-                path=APIUrls.ATTENDANCE_QUERY,
-                params=params,
-                token=token,
-            )
-            return self._parse_list_response(result)
-        except httpx.TimeoutException:
-            logger.warning("考勤查询超时")
-            return {"success": False, "data": None, "error": "查询超时，请稍后重试"}
-        except httpx.RequestError as exc:
-            logger.error("考勤服务不可达: {error}", error=str(exc))
-            return {"success": False, "data": None, "error": "考勤服务暂时不可用，请稍后重试"}
+        return cast(ListResponse, await self._call_api(
+            method="GET",
+            path=APIUrls.ATTENDANCE_QUERY,
+            parse_func=self._parse_list_response,
+            params=params,
+            token=token,
+            action_name="考勤查询",
+            service_name="考勤服务",
+        ))
 
     async def query_leave(
         self,
@@ -155,7 +137,7 @@ class AttendanceApiAdapter(BaseHttpClient):
         date_to: str | None = None,
         status: str | None = None,
         limit: int = 10,
-    ) -> dict:
+    ) -> ListResponse:
         """查询请假记录。
 
         Args:
@@ -166,7 +148,7 @@ class AttendanceApiAdapter(BaseHttpClient):
             limit: 返回条数上限，默认 10。
 
         Returns:
-            包含 success、data 和 error 字段的字典。
+            ``ListResponse`` 实体。
         """
         params: dict[str, str | int] = {"limit": limit}
         if date_from:
@@ -176,17 +158,12 @@ class AttendanceApiAdapter(BaseHttpClient):
         if status:
             params["status"] = status
 
-        try:
-            result = await self._do_request(
-                method="GET",
-                path=APIUrls.LEAVE_QUERY,
-                params=params,
-                token=token,
-            )
-            return self._parse_list_response(result)
-        except httpx.TimeoutException:
-            logger.warning("请假记录查询超时")
-            return {"success": False, "data": None, "error": "查询超时，请稍后重试"}
-        except httpx.RequestError as exc:
-            logger.error("考勤服务不可达: {error}", error=str(exc))
-            return {"success": False, "data": None, "error": "考勤服务暂时不可用，请稍后重试"}
+        return cast(ListResponse, await self._call_api(
+            method="GET",
+            path=APIUrls.LEAVE_QUERY,
+            parse_func=self._parse_list_response,
+            params=params,
+            token=token,
+            action_name="请假记录查询",
+            service_name="考勤服务",
+        ))

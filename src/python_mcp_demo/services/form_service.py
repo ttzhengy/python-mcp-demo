@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from python_mcp_demo.adapters.form_api import FormApiAdapter
+from python_mcp_demo.models.vo import ApiResponse, ListResponse
 
 
 class FormService:
@@ -29,7 +30,7 @@ class FormService:
         date_to: str | None = None,
         status: str | None = None,
         limit: int = 10,
-    ) -> dict:
+    ) -> ListResponse:
         """查询表单数据（业务逻辑入口）。
 
         执行业务规则：
@@ -45,7 +46,7 @@ class FormService:
             limit: 返回条数上限。
 
         Returns:
-            统一格式的响应字典。
+            ``ListResponse`` 实体。
         """
         # 业务规则：limit 上限
         effective_limit = min(limit, 100)
@@ -64,7 +65,7 @@ class FormService:
         token: str,
         form_type: str,
         form_data: dict,
-    ) -> dict:
+    ) -> ApiResponse:
         """提交表单。
 
         Args:
@@ -73,7 +74,7 @@ class FormService:
             form_data: 表单字段数据。
 
         Returns:
-            统一格式的响应字典。
+            ``ApiResponse`` 实体。
         """
         return await self._adapter.submit_form(
             token=token,
@@ -86,7 +87,7 @@ class FormService:
         token: str,
         form_type: str,
         template_id: str | None = None,
-    ) -> dict:
+    ) -> ApiResponse:
         """获取表单预填数据。
 
         Args:
@@ -95,7 +96,7 @@ class FormService:
             template_id: 模板标识（可选）。
 
         Returns:
-            统一格式的响应字典。
+            ``ApiResponse`` 实体。
         """
         return await self._adapter.prefill_form(
             token=token,

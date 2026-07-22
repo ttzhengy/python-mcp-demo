@@ -1,15 +1,16 @@
 """表单引擎 HTTP API 适配器。
 
 封装对 Java 表单引擎后端服务的 HTTP 调用。
-从原有的 form_engine.py 提取并基于 BaseHttpClient 重构。
+基于 ``BaseHttpClient._call_api`` 统一处理异常和日志。
+每个业务方法返回类型约束的 VO 实体类（``ApiResponse`` / ``ListResponse``）。
 """
 
 from __future__ import annotations
 
-import httpx
+from typing import cast
 
 from python_mcp_demo.core.http_client import BaseHttpClient
-from python_mcp_demo.logging_ import logger
+from python_mcp_demo.models.vo import ApiResponse, ListResponse
 from python_mcp_demo.urls import APIUrls
 
 
@@ -17,7 +18,8 @@ class FormApiAdapter(BaseHttpClient):
     """表单引擎 HTTP API 客户端。
 
     每个业务方法对应一个后端 API 端点。
-    继承 BaseHttpClient 的统一超时、重试和错误处理。
+    继承 BaseHttpClient 的统一超时、重试和错误处理，
+    通过 ``_call_api`` 消除重复的 try/except 日志代码。
     """
 
     async def query_forms(
@@ -28,7 +30,7 @@ class FormApiAdapter(BaseHttpClient):
         date_to: str | None = None,
         status: str | None = None,
         limit: int = 10,
-    ) -> dict:
+    ) -> ListResponse:
         """查询表单数据。
 
         Args:
@@ -40,7 +42,7 @@ class FormApiAdapter(BaseHttpClient):
             limit: 返回条数上限，默认 10。
 
         Returns:
-            包含 success、data 和 error 字段的字典。
+            ``ListResponse`` 实体。
         """
         params: dict[str, str | int] = {"limit": limit}
         if form_type:
@@ -52,27 +54,22 @@ class FormApiAdapter(BaseHttpClient):
         if status:
             params["status"] = status
 
-        try:
-            result = await self._do_request(
-                method="GET",
-                path=APIUrls.FORM_QUERY,
-                params=params,
-                token=token,
-            )
-            return self._parse_list_response(result)
-        except httpx.TimeoutException:
-            logger.warning("表单引擎查询超时")
-            return {"success": False, "data": None, "error": "查询超时，请稍后重试"}
-        except httpx.RequestError as exc:
-            logger.error("表单引擎不可达: {error}", error=str(exc))
-            return {"success": False, "data": None, "error": "后端服务暂时不可用，请稍后重试"}
+        return cast(ListResponse, await self._call_api(
+            method="GET",
+            path=APIUrls.FORM_QUERY,
+            parse_func=self._parse_list_response,
+            params=params,
+            token=token,
+            action_name="表单查询",
+            service_name="表单引擎",
+        ))
 
     async def submit_form(
         self,
         token: str,
         form_type: str,
         form_data: dict,
-    ) -> dict:
+    ) -> ApiResponse:
         """提交表单数据。
 
         Args:
@@ -81,29 +78,24 @@ class FormApiAdapter(BaseHttpClient):
             form_data: 表单字段数据。
 
         Returns:
-            包含 success、data 和 error 字段的字典。
+            ``ApiResponse`` 实体。
         """
-        try:
-            result = await self._do_request(
-                method="POST",
-                path=APIUrls.FORM_SUBMIT,
-                json_data={"form_type": form_type, "form_data": form_data},
-                token=token,
-            )
-            return self._parse_simple_response(result)
-        except httpx.TimeoutException:
-            logger.warning("表单提交超时")
-            return {"success": False, "data": None, "error": "提交超时，请稍后重试"}
-        except httpx.RequestError as exc:
-            logger.error("表单引擎不可达: {error}", error=str(exc))
-            return {"success": False, "data": None, "error": "后端服务暂时不可用，请稍后重试"}
+        return await self._call_api(
+            method="POST",
+            path=APIUrls.FORM_SUBMIT,
+            parse_func=self._parse_simple_response,
+            json_data={"form_type": form_type, "form_data": form_data},
+            token=token,
+            action_name="表单提交",
+            service_name="表单引擎",
+        )
 
     async def prefill_form(
         self,
         token: str,
         form_type: str,
         template_id: str | None = None,
-    ) -> dict:
+    ) -> ApiResponse:
         """获取表单预填数据。
 
         Args:
@@ -112,23 +104,18 @@ class FormApiAdapter(BaseHttpClient):
             template_id: 模板标识（可选）。
 
         Returns:
-            包含 success、data 和 error 字段的字典。
+            ``ApiResponse`` 实体。
         """
         params: dict[str, str] = {"form_type": form_type}
         if template_id:
             params["template_id"] = template_id
 
-        try:
-            result = await self._do_request(
-                method="GET",
-                path=APIUrls.FORM_PREFILL,
-                params=params,
-                token=token,
-            )
-            return self._parse_simple_response(result)
-        except httpx.TimeoutException:
-            logger.warning("表单预填查询超时")
-            return {"success": False, "data": None, "error": "查询超时，请稍后重试"}
-        except httpx.RequestError as exc:
-            logger.error("表单引擎不可达: {error}", error=str(exc))
-            return {"success": False, "data": None, "error": "后端服务暂时不可用，请稍后重试"}
+        return await self._call_api(
+            method="GET",
+            path=APIUrls.FORM_PREFILL,
+            parse_func=self._parse_simple_response,
+            params=params,
+            token=token,
+            action_name="表单预填查询",
+            service_name="表单引擎",
+        )
