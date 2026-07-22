@@ -1,14 +1,20 @@
 # API 接口文档
 
-## 工具接口定义
-
 本文档定义 `python-mcp-demo` 所有 MCP 工具的接口规范，包括输入参数、输出格式和错误码。
+
+**工具总数：15 个**
+
+| 类别 | 工具 | 来源文件 |
+|------|------|---------|
+| Demo | 8 个 | `tools/demo.py` |
+| 表单 | 3 个 | `tools/form_query.py`, `tools/form_submit.py` |
+| 考勤 | 5 个 | `tools/attendance_query.py`, `tools/attendance_submit.py` |
 
 ---
 
-## Demo 层工具（server.py）
+## Demo 工具（tools/demo.py）
 
-8 个内置示例工具，基于 FastMCP 框架实现。
+8 个基础示例工具，开箱即用。
 
 ### 1. hello — 问候
 
@@ -60,8 +66,8 @@ Hello, {name}! Welcome to MCP.
 
 **错误码：**
 
-| 错误码 | 触发条件 | 错误消息 |
-|--------|----------|----------|
+| 异常 | 触发条件 | 错误消息 |
+|------|----------|----------|
 | `MCPToolError` | URL 不以 http/https 开头 | `无效的 URL: 必须以 http:// 或 https:// 开头` |
 | `MCPToolError` | HTTP 4xx/5xx | `HTTP {status}: {reason}` |
 | `MCPToolError` | 网络不可达 | `请求失败: {details}` |
@@ -116,8 +122,8 @@ Hello, {name}! Welcome to MCP.
 
 **错误码：**
 
-| 错误码 | 触发条件 | 错误消息示例 |
-|--------|----------|-------------|
+| 异常 | 触发条件 | 错误消息示例 |
+|------|----------|-------------|
 | `MathExpressionError` | 空表达式 | `表达式不能为空` |
 | `MathExpressionError` | 语法错误 | `表达式语法错误: ...` |
 | `MathExpressionError` | 不支持的函数 | `不支持的函数: invalid_func` |
@@ -145,8 +151,8 @@ Hello, {name}! Welcome to MCP.
 
 **错误码：**
 
-| 错误码 | 触发条件 | 错误消息 |
-|--------|----------|----------|
+| 异常 | 触发条件 | 错误消息 |
+|------|----------|----------|
 | `MCPToolError` | `min > max` | `最小值 ({min}) 不能大于最大值 ({max})` |
 
 ---
@@ -173,9 +179,9 @@ YYYY-MM-DD HH:MM:SS
 
 **错误码：**
 
-| 错误码 | 触发条件 | 错误消息 |
-|--------|----------|----------|
-| `MCPToolError` | 时区不可识别 | `未知时区: {name}` |
+| 异常 | 触发条件 | 错误消息 |
+|------|----------|----------|
+| `MCPToolError` | 时区不可识别 | `未知时区: {name}。请使用有效的 IANA 时区，例如 'Asia/Shanghai'。` |
 
 ---
 
@@ -198,8 +204,8 @@ YYYY-MM-DD HH:MM:SS
 
 **错误码：**
 
-| 错误码 | 触发条件 | 错误消息 |
-|--------|----------|----------|
+| 异常 | 触发条件 | 错误消息 |
+|------|----------|----------|
 | `MCPToolError` | `times` 不在 1~100 范围 | `重复次数 ({times}) 必须在 1 到 100 之间` |
 
 ---
@@ -238,15 +244,16 @@ YYYY-MM-DD HH:MM:SS
 
 ---
 
-## POC 层工具（main.py）
+## 表单工具（tools/form_query.py + tools/form_submit.py）
 
-### query_forms — 表单查询
+### 9. query_forms — 表单查询
 
 | 项目 | 说明 |
 |------|------|
 | **工具名** | `query_forms` |
-| **功能** | 查询表单数据（请假申请、报销单等），端到端链路经 Token 校验 → 后端 HTTP API |
+| **功能** | 查询表单数据（请假申请、报销单等），经 Token 校验 → 后端 HTTP API |
 | **MCP 调用** | `server.call_tool("query_forms", {...})` |
+| **来源** | `tools/form_query.py` |
 
 **输入参数：**
 
@@ -257,7 +264,7 @@ YYYY-MM-DD HH:MM:SS
 | `date_from` | `str` | 否 | `""` | 时间范围起（YYYY-MM-DD） |
 | `date_to` | `str` | 否 | `""` | 时间范围止（YYYY-MM-DD） |
 | `status` | `str` | 否 | `""` | 表单状态（如 "已审批"、"待审批"） |
-| `limit` | `int` | 否 | `10` | 返回条数上限 |
+| `limit` | `int` | 否 | `10` | 返回条数上限（最大 100） |
 
 **成功输出格式：**
 
@@ -308,32 +315,277 @@ YYYY-MM-DD HH:MM:SS
 
 ---
 
+### 10. submit_form — 表单提交
+
+| 项目 | 说明 |
+|------|------|
+| **工具名** | `submit_form` |
+| **功能** | 提交表单数据（如请假申请、报销单等） |
+| **MCP 调用** | `server.call_tool("submit_form", {...})` |
+| **来源** | `tools/form_submit.py` |
+
+**输入参数：**
+
+| 参数 | 类型 | 必需 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `user_token` | `str` | 是 | — | 用户 JWT Token |
+| `form_type` | `str` | 是 | — | 表单类型名称（如 "请假申请"） |
+| `form_data` | `dict` | 是 | — | 表单字段数据（JSON 对象） |
+
+**输出格式：**
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "error": null
+}
+```
+
+**错误场景：** 与 query_forms 相同的认证/网络错误场景。
+
+---
+
+### 11. prefill_form — 表单预填
+
+| 项目 | 说明 |
+|------|------|
+| **工具名** | `prefill_form` |
+| **功能** | 获取表单预填数据（根据模板自动填充表单字段） |
+| **MCP 调用** | `server.call_tool("prefill_form", {...})` |
+| **来源** | `tools/form_submit.py` |
+
+**输入参数：**
+
+| 参数 | 类型 | 必需 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `user_token` | `str` | 是 | — | 用户 JWT Token |
+| `form_type` | `str` | 是 | — | 表单类型名称（如 "请假申请"） |
+| `template_id` | `str` | 否 | `""` | 模板标识 |
+
+**输出格式：**
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "error": null
+}
+```
+
+---
+
+## 考勤工具（tools/attendance_query.py + tools/attendance_submit.py）
+
+### 12. clock_in — 上班签到
+
+| 项目 | 说明 |
+|------|------|
+| **工具名** | `clock_in` |
+| **功能** | 记录当前时间作为上班打卡时间 |
+| **MCP 调用** | `server.call_tool("clock_in", {"user_token": "..."})` |
+| **来源** | `tools/attendance_submit.py` |
+
+**输入参数：**
+
+| 参数 | 类型 | 必需 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `user_token` | `str` | 是 | — | 用户 JWT Token |
+
+**输出格式：**
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "error": null
+}
+```
+
+---
+
+### 13. clock_out — 下班签退
+
+| 项目 | 说明 |
+|------|------|
+| **工具名** | `clock_out` |
+| **功能** | 记录当前时间作为下班打卡时间 |
+| **MCP 调用** | `server.call_tool("clock_out", {"user_token": "..."})` |
+| **来源** | `tools/attendance_submit.py` |
+
+**输入参数：**
+
+| 参数 | 类型 | 必需 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `user_token` | `str` | 是 | — | 用户 JWT Token |
+
+**输出格式：**
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "error": null
+}
+```
+
+---
+
+### 14. leave_apply — 请假申请
+
+| 项目 | 说明 |
+|------|------|
+| **工具名** | `leave_apply` |
+| **功能** | 提交请假申请 |
+| **MCP 调用** | `server.call_tool("leave_apply", {...})` |
+| **来源** | `tools/attendance_submit.py` |
+
+**输入参数：**
+
+| 参数 | 类型 | 必需 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `user_token` | `str` | 是 | — | 用户 JWT Token |
+| `leave_type` | `str` | 是 | — | 请假类型（年假/事假/病假/婚假/产假） |
+| `date_from` | `str` | 是 | — | 开始日期（YYYY-MM-DD） |
+| `date_to` | `str` | 是 | — | 结束日期（YYYY-MM-DD） |
+| `reason` | `str` | 是 | — | 请假原因 |
+
+**输出格式：**
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "error": null
+}
+```
+
+**参数校验错误：**
+
+| 场景 | `success` | `error` 消息 |
+|------|-----------|-------------|
+| leave_type 为空 | `false` | `请假类型不能为空` |
+| date_from 为空 | `false` | `开始日期不能为空` |
+| date_to 为空 | `false` | `结束日期不能为空` |
+| reason 为空 | `false` | `请假原因不能为空` |
+
+---
+
+### 15. query_attendance — 考勤记录查询
+
+| 项目 | 说明 |
+|------|------|
+| **工具名** | `query_attendance` |
+| **功能** | 查询考勤记录（签到时间、签退时间、考勤状态等） |
+| **MCP 调用** | `server.call_tool("query_attendance", {...})` |
+| **来源** | `tools/attendance_query.py` |
+
+**输入参数：**
+
+| 参数 | 类型 | 必需 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `user_token` | `str` | 是 | — | 用户 JWT Token |
+| `date_from` | `str` | 否 | `""` | 时间范围起（YYYY-MM-DD） |
+| `date_to` | `str` | 否 | `""` | 时间范围止（YYYY-MM-DD） |
+| `status` | `str` | 否 | `""` | 考勤状态（如 "正常"、"迟到"、"早退"） |
+| `limit` | `int` | 否 | `10` | 返回条数上限（最大 100） |
+
+**成功输出格式：**
+
+```json
+{
+  "success": true,
+  "data": {
+    "total": 10,
+    "returned": 10,
+    "items": [ ... ]
+  },
+  "error": null
+}
+```
+
+---
+
+### 16. query_leave_records — 请假记录查询
+
+| 项目 | 说明 |
+|------|------|
+| **工具名** | `query_leave_records` |
+| **功能** | 查询历史请假申请及审批状态 |
+| **MCP 调用** | `server.call_tool("query_leave_records", {...})` |
+| **来源** | `tools/attendance_query.py` |
+
+**输入参数：**
+
+| 参数 | 类型 | 必需 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `user_token` | `str` | 是 | — | 用户 JWT Token |
+| `date_from` | `str` | 否 | `""` | 时间范围起（YYYY-MM-DD） |
+| `date_to` | `str` | 否 | `""` | 时间范围止（YYYY-MM-DD） |
+| `status` | `str` | 否 | `""` | 请假状态（如 "已审批"、"待审批"、"已驳回"） |
+| `limit` | `int` | 否 | `10` | 返回条数上限（最大 100） |
+
+**成功输出格式：**
+
+```json
+{
+  "success": true,
+  "data": {
+    "total": 5,
+    "returned": 5,
+    "items": [ ... ]
+  },
+  "error": null
+}
+```
+
+---
+
+## 错误码汇总
+
+### Demo 层异常（抛异常模式）
+
+| 异常类 | 父类 | 说明 |
+|--------|------|------|
+| `MCPToolError` | `Exception` | 可恢复的工具执行错误 |
+| `MathExpressionError` | `MCPToolError` | 不合法或不安全的数学表达式 |
+
+FastMCP 框架会将这些异常包装为 `ToolError` 返回给调用方。
+
+### 业务层错误码（返回格式模式）
+
+业务工具**不抛出异常**，而是通过 `{success, error}` 字段返回错误信息：
+
+| 错误场景 | 错误消息 |
+|----------|----------|
+| Token 为空 | `缺少用户认证信息，请重新登录后重试` |
+| Token 过期 | `登录已过期，请刷新页面后重试` |
+| 权限不足 | `权限不足，无法执行此操作` |
+| 认证服务超时/不可达 | `认证服务暂时不可用，请稍后重试` |
+| 查询/提交超时 | `{操作}超时，请稍后重试` |
+| 后端不可达 | `{服务}暂时不可用，请稍后重试` |
+| 后端 4xx | `请求参数错误 ({status})` |
+| 后端 5xx（重试后） | `后端服务异常，请稍后重试 ({status})` |
+| 响应格式异常 | `后端返回数据格式异常` |
+| 请假参数为空 | `{字段名}不能为空` |
+
+---
+
 ## MCP 服务器启动与连接
 
 ### 启动方式
 
-#### Development 模式（stdio 传输）
+#### 开发模式（stdio 传输）
 
 ```bash
 python -m python_mcp_demo
 ```
 
-通过 stdio 协议与本地 MCP 客户端通信。
-
-#### Production 模式（SSE 传输）
+#### FastAPI + SSE 模式
 
 ```bash
 python -m python_mcp_demo
-# 默认监听 0.0.0.0:8000，通过 SSE 传输
-```
-
-或从代码启动：
-
-```python
-from python_mcp_demo import create_server
-
-server = create_server("my-server")
-server.run(transport="sse", host="0.0.0.0", port=8000)
+# 默认监听 0.0.0.0:8000，/obot/mcp/sse 端点
 ```
 
 ### 连接方式
@@ -347,9 +599,7 @@ server = create_server()
 result = await server.call_tool("hello", {"name": "World"})
 ```
 
-#### 标准 MCP 客户端（任何语言）
-
-通过 stdio 或 SSE 连接，发送 JSON-RPC 消息：
+#### 标准 MCP 客户端（JSON-RPC）
 
 ```json
 {
@@ -363,34 +613,14 @@ result = await server.call_tool("hello", {"name": "World"})
 }
 ```
 
-#### Claude Desktop / Dify 集成
-
-在 MCP 客户端配置中添加 SSE 端点地址：
+#### MCP 客户端配置（Claude Desktop / Dify）
 
 ```json
 {
   "mcpServers": {
     "python-mcp-demo": {
-      "url": "http://<host>:8000/sse"
+      "url": "http://<host>:8000/obot/mcp/sse"
     }
   }
 }
 ```
-
----
-
-## 错误码汇总
-
-### Demo 层异常
-
-| 异常类 | 父类 | 说明 |
-|--------|------|------|
-| `MCPToolError` | `Exception` | 可恢复的工具执行错误 |
-| `MathExpressionError` | `MCPToolError` | 不合法或不安全的数学表达式 |
-
-FastMCP 框架会将这些异常包装为 `ToolError` 返回给调用方。
-
-### POC 层错误码
-
-POC 工具不抛出异常，而是通过 `{success, error}` 字段返回错误信息。
-唯一输入校验异常是 Token 为空的场景，其余网络/业务错误均走正常返回路径。

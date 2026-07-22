@@ -43,7 +43,7 @@ uv run python -m python_mcp_demo
 
 - 所有代码在 `src/python_mcp_demo/` 目录下
 - Demo 工具编辑 `server.py`，POC 工具编辑 `main.py`
-- 业务适配器新建独立模块（参考 `form_engine.py`）
+- 业务适配器新建独立模块（参考 `adapters/form_api.py`）
 - 遵循 [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html) 的 docstring 格式
 
 ### 2. 运行测试
@@ -60,9 +60,6 @@ uv run pytest -v tests/test_demo.py
 
 # 按测试名称筛选
 uv run pytest -v -k "test_calculate"
-
-# POC 验收验证
-uv run python test_poc.py
 ```
 
 ### 3. 代码检查
@@ -151,7 +148,7 @@ git push origin <branch>
 
 | 元素 | 规范 | 示例 |
 |------|------|------|
-| 模块/包 | 小写下划线 | `form_engine.py` |
+| 模块/包 | 小写下划线 | `form_api.py` |
 | 类 | 大驼峰 | `AuthMiddleware` |
 | 函数/方法 | 小写下划线 | `verify_token()` |
 | 变量 | 小写下划线 | `user_token` |
@@ -227,21 +224,44 @@ uv publish
 
 ```
 src/python_mcp_demo/
-├── __init__.py      # 导出公共 API，版本声明
-├── __main__.py      # CLI 入口
-├── server.py        # Demo 工具（8 个内置）
-├── main.py          # POC 主入口
-├── config.py        # 配置管理
-├── auth.py          # 认证中间件
-├── exceptions.py    # 异常定义
-├── logging_.py      # 日志工具
-└── form_engine.py   # 业务适配器示例
+├── __init__.py          # 导出公共 API，版本声明
+├── __main__.py          # CLI 入口
+├── server.py            # 向后兼容封装
+├── main.py              # FastAPI + FastMCP 主入口
+├── config.py            # 配置管理（pydantic-settings, MCP_ 前缀）
+├── auth.py              # Token 前置校验中间件
+├── exceptions.py        # 自定义异常（MCPToolError, MathExpressionError）
+├── logging_.py          # loguru 结构化日志
+├── urls.py              # API URL 集中管理
+├── core/
+│   ├── __init__.py
+│   └── http_client.py   # BaseHttpClient 基类
+├── models/
+│   ├── __init__.py
+│   ├── form.py          # 表单相关 Pydantic 模型
+│   └── attendance.py    # 考勤相关 Pydantic 模型
+├── services/
+│   ├── __init__.py
+│   ├── form_service.py          # 表单业务逻辑
+│   └── attendance_service.py    # 考勤业务逻辑
+├── adapters/
+│   ├── __init__.py
+│   ├── form_api.py       # 表单引擎 HTTP API 适配器
+│   └── attendance_api.py # 考勤服务 HTTP API 适配器
+└── tools/
+    ├── __init__.py
+    ├── demo.py                 # 8 个基础 demo 工具
+    ├── form_query.py           # 表单查询工具
+    ├── form_submit.py          # 表单提交工具
+    ├── attendance_query.py     # 考勤查询工具
+    └── attendance_submit.py    # 考勤操作工具
 
 tests/
-├── test_demo.py     # Demo 层测试
-└── ...              # 其他测试
+├── test_demo.py         # Demo 工具测试
+└── ...                  # 其他测试
 
 docs/
-├── api.md           # API 文档
-└── architecture.md  # 架构说明
+├── api.md               # API 接口文档
+├── architecture.md      # 架构说明文档
+└── attendance-module-guide.md  # 考勤模块使用指南
 ```

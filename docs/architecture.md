@@ -2,39 +2,202 @@
 
 ## 项目概述
 
-`python-mcp-demo` 是一个基于 [FastMCP](https://github.com/jlowin/fastmcp) 构建的生产级 MCP（Model Context Protocol）服务器库。
+`python-mcp-demo` 是一个基于 [FastMCP](https://github.com/jlowin/fastmcp) 构建的 AI 办公助手 MCP 服务器，采用 **5 层模块化架构**（v0.4.0）。
 
-项目分为两个功能层次：
+### 端到端链路
 
-| 层次 | 目录 | 说明 |
-|------|------|------|
-| **Demo 层** | `server.py` | 8 个内置示例工具，开箱即用，适合学习 MCP 协议 |
-| **POC 层** | `main.py` + 业务模块 | AI 办公助手 POC，连接 Dify 工作流与 Java 后端 |
+```
+用户提问 → Dify Agent → MCP 协议 (SSE) → FastMCP 
+→ tools (参数解析) → services (业务逻辑) 
+→ adapters (HTTP 调用) → Java 后端
+```
 
 ---
 
-## 项目结构
+## 5 层分层架构
+
+```
+┌─────────────────────────────────────────────┐
+│                  tools/                      │
+│   FastMCP @server.tool() 定义（薄封装层）      │
+│   参数解析 → 调用 service → 格式化返回         │
+│   ┌──────────────────────────────────────┐   │
+│   │ demo.py / form_query.py /            │   │
+│   │ form_submit.py / attendance_query.py │   │
+│   │ attendance_submit.py                 │   │
+│   └──────────────────────────────────────┘   │
+├─────────────────────────────────────────────┤
+│                services/                     │
+│   纯 Python 业务逻辑（不依赖 FastMCP）         │
+│   封装业务规则：参数校验、适配器编排             │
+│   ┌──────────────────────────────────────┐   │
+│   │ form_service.py / attendance_service │   │
+│   └──────────────────────────────────────┘   │
+├─────────────────────────────────────────────┤
+│                adapters/                     │
+│   HTTP API 适配器（继承 BaseHttpClient）       │
+│   封装对 Java 后端服务的 HTTP 调用             │
+│   ┌──────────────────────────────────────┐   │
+│   │ form_api.py / attendance_api.py       │   │
+│   └──────────────────────────────────────┘   │
+├─────────────────────────────────────────────┤
+│                 core/                        │
+│   跨模块基础设施                              │
+│   ┌──────────────────────────────────────┐   │
+│   │ http_client.py  BaseHttpClient 基类   │   │
+│   └──────────────────────────────────────┘   │
+├─────────────────────────────────────────────┤
+│                models/                       │
+│   Pydantic 数据模型                          │
+│   ┌──────────────────────────────────────┐   │
+│   │ form.py / attendance.py              │   │
+│   └──────────────────────────────────────┘   │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+## 模块职责
+
+### 1. `tools/` — 工具层
+
+FastMCP `@server.tool()` 定义的薄封装层。每个工具函数只做三件事：
+
+1. **参数解析** — 从函数参数中提取业务数据
+2. **调用 service** — 将业务参数传给下层服务
+3. **格式化返回** — 将 service 的返回格式化为 MCP 响应
+
+**目录：**
+
+| 文件 | 注册的工具 | 依赖 |
+|------|-----------|------|
+| `demo.py` | hello, fetch_url, add, calculate, random_number, current_time, echo, count_words | config, exceptions |
+| `form_query.py` | query_forms | FormService, AuthMiddleware |
+| `form_submit.py` | submit_form, prefill_form | FormService, AuthMiddleware |
+| `attendance_query.py` | query_attendance, query_leave_records | AttendanceService, AuthMiddleware |
+| `attendance_submit.py` | clock_in, clock_out, leave_apply | AttendanceService, AuthMiddleware |
+
+### 2. `services/` — 业务服务层
+
+纯 Python 业务逻辑，**不依赖 FastMCP**。封装业务规则：
+
+- `FormService` — 表单查询、提交、预填的业务逻辑（limit 上限、日期范围校验）
+- `AttendanceService` — 考勤签到、签退、请假申请、记录查询的业务逻辑
+
+### 3. `adapters/` — 适配器层
+
+HTTP API 客户端，继承 `BaseHttpClient`，封装对 Java 后端服务的 HTTP 调用。
+
+- `FormApiAdapter` — 表单引擎（form_engine）HTTP API
+- `AttendanceApiAdapter` — 考勤服务 HTTP API
+
+### 4. `core/` — 基础设施层
+
+- `http_client.py` — `BaseHttpClient` 基类，提供统一的：
+  - 超时控制（连接超时 + 读超时）
+  - 指数退避重试（tenacity，仅 5xx 状态码）
+  - 4xx 直接返回（不重试）
+  - X-AI-Agent 审计标记
+  - 响应解析（`_parse_list_response` / `_parse_simple_response`）
+
+### 5. `models/` — 数据模型层
+
+Pydantic `BaseModel` 定义，用于请求/响应的类型约束和验证。
+
+- `form.py` — `FormQueryRequest`, `FormQueryResponse`, `FormSubmitRequest`, `FormPrefillRequest`
+- `attendance.py` — `ClockInRequest`, `ClockOutRequest`, `LeaveApplyRequest`, `AttendanceQueryRequest`
+
+---
+
+## 模块间调用关系
+
+```
+main.py:create_server()
+  │
+  ├── tools/demo.py:register_tools(server)
+  │     └── 直接返回，不依赖 service/adapter
+  │
+  ├── tools/form_query.py:register_tools(server, form_service, auth_middleware)
+  │     └── form_service.query_forms()
+  │           └── FormApiAdapter.query_forms()  ← BaseHttpClient._do_request()
+  │
+  ├── tools/form_submit.py:register_tools(server, form_service, auth_middleware)
+  │     └── form_service.submit_form() / form_service.prefill_form()
+  │           └── FormApiAdapter.submit_form() / .prefill_form()
+  │
+  ├── tools/attendance_query.py:register_tools(server, attendance_service, auth_middleware)
+  │     └── attendance_service.query_records() / .query_leave()
+  │           └── AttendanceApiAdapter.query_records() / .query_leave()
+  │
+  └── tools/attendance_submit.py:register_tools(server, attendance_service, auth_middleware)
+        └── attendance_service.clock_in() / .clock_out() / .leave_apply()
+              └── AttendanceApiAdapter.clock_in() / .clock_out() / .leave_apply()
+```
+
+### 认证中间件调用
+
+每个业务工具在调用 service 前，先调用 `auth_middleware.verify_token()` 前置校验 JWT Token 有效性：
+
+```
+tools/form_query.py
+  → auth_middleware.verify_token(user_token)  ← 前置校验
+  → form_service.query_forms(...)              ← 业务逻辑
+```
+
+### 响应格式统一
+
+所有 HTTP API 适配器返回统一格式：
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "error": null
+}
+```
+
+- **列表类响应**（query_forms / query_attendance）：data 包含 `{total, returned, items}`
+- **操作类响应**（clock_in / submit_form）：data 为直接结果对象
+
+---
+
+## 项目目录树
 
 ```
 python-mcp-demo/
-├── src/python_mcp_demo/        # 源码包
-│   ├── __init__.py              # 包入口，导出 create_server / mcp
+├── src/python_mcp_demo/         # 源码包
+│   ├── __init__.py              # 导出 create_server, mcp, tools
 │   ├── __main__.py              # CLI 入口: python -m python_mcp_demo
-│   ├── server.py                # 8 个内置 demo 工具（hello / fetch_url / add / calculate / ...）
-│   ├── main.py                  # POC 主入口（query_forms 工具）
+│   ├── server.py                # 向后兼容封装（57 行精简版）
+│   ├── main.py                  # FastAPI + FastMCP 入口
 │   ├── config.py                # 配置管理（pydantic-settings, MCP_ 前缀）
 │   ├── auth.py                  # Token 前置校验中间件
-│   ├── form_engine.py           # 表单引擎 HTTP API 适配器
+│   ├── exceptions.py            # 自定义异常体系
 │   ├── logging_.py              # loguru 结构化日志
-│   └── exceptions.py            # 自定义异常体系
+│   ├── urls.py                  # API URL 集中管理
+│   ├── core/
+│   │   └── http_client.py       # BaseHttpClient 基类
+│   ├── models/
+│   │   ├── form.py              # 表单数据模型
+│   │   └── attendance.py        # 考勤数据模型
+│   ├── services/
+│   │   ├── form_service.py      # 表单业务逻辑
+│   │   └── attendance_service.py # 考勤业务逻辑
+│   ├── adapters/
+│   │   ├── form_api.py          # 表单引擎 HTTP API 适配器
+│   │   └── attendance_api.py    # 考勤服务 HTTP API 适配器
+│   └── tools/
+│       ├── demo.py              # 8 个基础 demo 工具
+│       ├── form_query.py        # 表单查询工具
+│       ├── form_submit.py       # 表单提交工具
+│       ├── attendance_query.py  # 考勤查询工具
+│       └── attendance_submit.py # 考勤操作工具
 ├── tests/
-│   ├── test_demo.py             # 8 个 demo 工具的 pytest 测试
-│   └── ...                      # POC 相关测试
-├── test_poc.py                  # POC 验证脚本（7 项验收清单）
-├── docs/                        # 文档目录
+│   └── test_demo.py             # Demo 工具 pytest 测试
+├── docs/
 │   ├── api.md                   # API 接口文档
-│   └── architecture.md          # 本文档
-├── Makefile                     # 常用开发命令
+│   ├── architecture.md          # 本文档
+│   └── attendance-module-guide.md  # 考勤模块使用指南
 ├── pyproject.toml               # 项目元数据与构建配置
 ├── .env.example                 # 环境变量配置模板
 └── README.md                    # 项目总览与快速开始
@@ -42,136 +205,24 @@ python-mcp-demo/
 
 ---
 
-## 模块职责
+## URL 集中管理
 
-### 1. `server.py` — Demo 服务器（8 个内置工具）
-
-提供基于 FastMCP 的参考实现。包含以下独立工具：
-
-- **hello** — 问候
-- **fetch_url** — URL 内容抓取
-- **add** — 算术加法
-- **calculate** — 安全数学表达式求值（AST 解析，非 `eval()`）
-- **random_number** — 随机数生成
-- **current_time** — 当前时间（IANA 时区）
-- **echo** — 消息回显
-- **count_words** — 文本统计分析
-
-核心安全设计：`calculate` 工具使用 AST 解析替代 `eval()`，白名单模式只允许预设运算符和函数。
-
-### 2. `main.py` — POC 服务器入口
-
-AI 办公助手 POC 的服务器入口，暴露 `query_forms` MCP Tool。
-
-目标链路：
-
-```
-Dify Agent → MCP 协议 (SSE) → FastMCP → HTTP API → Java 后端
-```
-
-### 3. `config.py` — 配置管理
-
-基于 `pydantic-settings`，所有配置项以 `MCP_` 为环境变量前缀。
-
-配置优先级：环境变量 > `.env` 文件 > 默认值
-
-### 4. `auth.py` — Token 认证中间件
-
-- 在前置阶段调用后端认证 API 验证 JWT Token 有效性
-- 支持开发模式跳过校验（`auth_url` 为空时自动放行）
-- 使用 `AuthMiddleware` 类封装
-
-### 5. `form_engine.py` — 表单引擎适配器
-
-- 封装对 Java 后端的 HTTP 调用
-- 支持指数退避重试（tenacity，仅 5xx 错误）
-- 统一响应格式 `{success, data, error}`
-
-### 6. `logging_.py` — 结构化日志
-
-- 基于 loguru 实现 JSON 结构化日志输出
-- 自动脱敏用户 Token（保留前 N 字符）
-- 统一日志字段格式：`timestamp, level, trace_id, tool_name, duration_ms, status`
-
-### 7. `exceptions.py` — 异常体系
-
-```
-Exception
-└── MCPToolError          # 可恢复的工具执行错误
-    └── MathExpressionError  # 不合法或不安全的数学表达式
-```
-
----
-
-## 扩展方式：如何添加新工具
-
-### 在 Demo 层添加工具
-
-编辑 `server.py`，在 `create_server()` 函数内使用 `@server.tool()` 装饰器：
+所有后端 API 路径集中定义在 `urls.py` 的 `APIUrls` 类中，避免路径字符串散落在各适配器中：
 
 ```python
-@server.tool()
-async def my_tool(param1: str, param2: int = 0) -> str:
-    \"\"\"工具功能描述。
+class APIUrls:
+    # 表单服务
+    FORM_QUERY: str = "/api/forms/query"
+    FORM_PREFILL: str = "/api/forms/prefill"
+    FORM_SUBMIT: str = "/api/forms/submit"
 
-    Args:
-        param1: 参数说明。
-        param2: 参数说明，含默认值。
-
-    Returns:
-        返回结果描述。
-
-    Raises:
-        MCPToolError: 出错时抛出。
-    \"\"\"
-    # 业务逻辑
-    return "result"
+    # 考勤服务
+    ATTENDANCE_QUERY: str = "/api/attendance/query"
+    CLOCK_IN: str = "/api/attendance/clock-in"
+    CLOCK_OUT: str = "/api/attendance/clock-out"
+    LEAVE_APPLY: str = "/api/attendance/leave/apply"
+    LEAVE_QUERY: str = "/api/attendance/leave/query"
 ```
-
-约束：
-- 使用类型注解标注输入参数类型
-- 写完整的 Google-style docstring
-- 自定义异常继承 `MCPToolError`
-
-### 在 POC 层添加工具
-
-编辑 `main.py`，在 `create_server()` 函数内添加：
-
-```python
-@server.tool()
-async def my_business_tool(
-    user_token: str,
-    # ... 业务参数
-) -> dict:
-    \"\"\"...\"\"\"
-    trace_id = uuid.uuid4().hex[:12]
-    tool_name = "my_business_tool"
-    start_time = time.time()
-
-    # 1. 参数校验
-    if not user_token:
-        return error_response("缺少用户认证信息")
-
-    # 2. Token 前置校验
-    verify_result = await auth_middleware.verify_token(user_token)
-    if not verify_result.valid:
-        return error_response(verify_result.error)
-
-    # 3. 业务逻辑（调用后端 API）
-    result = await ...  # 业务调用
-
-    # 4. 审计日志
-    log_json("INFO", trace_id, tool_name, elapsed, "success", ...)
-
-    return result
-```
-
-### 添加后端 API 适配器
-
-创建新的适配器模块，参考 `form_engine.py` 的模式：
-- 继承统一的超时/重试机制
-- 使用 `_build_headers()` 添加审计 Header
-- 返回统一格式 `{success, data, error}`
 
 ---
 
@@ -179,22 +230,7 @@ async def my_business_tool(
 
 所有配置项通过环境变量或 `.env` 文件设置，以 `MCP_` 为前缀。
 
-| 环境变量 | 默认值 | 说明 |
-|----------|--------|------|
-| `MCP_SERVER_NAME` | `ai-office-mcp` | FastMCP 服务器名称 |
-| `MCP_HOST` | `0.0.0.0` | 监听地址 |
-| `MCP_PORT` | `8000` | 监听端口 |
-| `MCP_LOG_LEVEL` | `INFO` | 日志级别 |
-| `MCP_LOG_JSON` | `true` | JSON 结构化日志开关 |
-| `MCP_REQUEST_TIMEOUT` | `20` | HTTP 读超时（秒） |
-| `MCP_CONNECT_TIMEOUT` | `5` | HTTP 连接超时（秒） |
-| `MCP_MAX_RETRIES` | `3` | 5xx 错误最大重试次数 |
-| `MCP_RETRY_MIN_DELAY` | `1.0` | 重试初始间隔（秒） |
-| `MCP_RETRY_MAX_DELAY` | `8.0` | 重试最大间隔（秒） |
-| `MCP_BACKEND_BASE_URL` | `http://localhost:8080` | Java 后端基础 URL |
-| `MCP_BACKEND_AUTH_URL` | `http://localhost:8080/api/auth/verify` | 认证 API URL |
-| `MCP_TOKEN_MASK_PREFIX_LEN` | `8` | Token 脱敏保留前缀长度 |
-| `MCP_MAX_FETCH_SIZE` | `5000` | fetch_url 内容预览最大字节数 |
+详见 `config.py` 中的 `Settings` 类的完整字段列表。
 
 ---
 
@@ -211,11 +247,17 @@ async def my_business_tool(
 
 - 用户身份通过 JWT Token 透传到 Java 后端
 - MCP 层仅做 Token 有效性前置校验（过期提前拦截）
-- Cookie 不进入 Dify/LLM 环境
 - HTTP Header 添加 `X-AI-Agent: dify-workflow/v1` 审计标记
 
 ### ADR-003：存量零改造
 
 Java 后端不做任何变更，MCP 层以标准 HTTP 客户端身份调用后端 API。
 
----
+### ADR-004：5 层模块化分层
+
+将原有平铺结构重构为五层，职责分离：
+- **tools** — MCP 协议耦合层
+- **services** — 纯业务逻辑
+- **adapters** — 外部系统适配
+- **core** — 基础设施复用
+- **models** — 数据模型共享
