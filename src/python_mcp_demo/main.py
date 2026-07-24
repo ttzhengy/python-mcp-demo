@@ -25,13 +25,13 @@ from fastmcp import FastMCP
 from starlette.applications import Starlette
 from starlette.routing import Mount
 
-from python_mcp_demo.adapters.attendance_api import AttendanceApiAdapter
-from python_mcp_demo.adapters.form_api import FormApiAdapter
+from python_mcp_demo.attendance.api import AttendanceApiAdapter
+from python_mcp_demo.attendance.service import AttendanceService
 from python_mcp_demo.auth import AuthMiddleware
 from python_mcp_demo.config import settings
+from python_mcp_demo.form.api import FormApiAdapter
+from python_mcp_demo.form.service import FormService
 from python_mcp_demo.logging_ import log_json, logger, setup_logging
-from python_mcp_demo.services.attendance_service import AttendanceService
-from python_mcp_demo.services.form_service import FormService
 
 # 初始化日志
 setup_logging(log_level=settings.log_level, json_format=settings.log_json)
@@ -80,13 +80,11 @@ def create_server(name: str | None = None) -> FastMCP:
     server = FastMCP(name or settings.server_name)
 
     # ── 注册各业务模块的 tools ──
-    from python_mcp_demo.tools import (
-        attendance_query,
-        attendance_submit,
-        demo,
-        form_query,
-        form_submit,
-    )
+    from python_mcp_demo.tools import demo
+    from python_mcp_demo.attendance import query as attendance_query
+    from python_mcp_demo.attendance import submit as attendance_submit
+    from python_mcp_demo.form import query as form_query
+    from python_mcp_demo.form import submit as form_submit
 
     demo.register_tools(server)
     form_query.register_tools(server, form_service, auth_middleware)

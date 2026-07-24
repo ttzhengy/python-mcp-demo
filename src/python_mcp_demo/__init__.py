@@ -2,20 +2,17 @@
 
 架构分层::
 
-    tools/          FastMCP @server.tool() 定义
-    services/       纯业务逻辑（不依赖 FastMCP）
-    adapters/       HTTP API 适配器
-    core/           跨模块基础设施
-    models/         数据模型
+    attendance/    考勤业务领域（models, service, query, submit, api）
+    form/          表单业务领域（models, service, query, submit, api）
+    tools/         Demo 工具集
+    core/          跨模块基础设施（http_client, logging_helper）
+    models/        通用 VO 实体
 """
-
 __version__ = "0.4.0"
 
-from . import tools
 from .server import create_server, mcp
 
 __all__ = [
     "create_server",
     "mcp",
-    "tools",
 ]

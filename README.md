@@ -1,6 +1,6 @@
 # python-mcp-demo
 
-基于 [FastMCP](https://github.com/jlowin/fastmcp) 构建的 AI 办公助手 MCP 服务器，采用 5 层模块化架构。
+基于 [FastMCP](https://github.com/jlowin/fastmcp) 构建的 AI 办公助手 MCP 服务器，采用按业务领域分包的模块化架构。
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT)
@@ -8,12 +8,16 @@
 ## 架构概览
 
 ```
-tools/          FastMCP @server.tool() 定义（薄封装层）
-services/      纯业务逻辑（不依赖 FastMCP）
-adapters/      HTTP API 适配器（基于 BaseHttpClient）
-core/          跨模块基础设施（http_client.py）
-models/        Pydantic 数据模型
+attendance/     考勤业务领域（models/service/query/submit/api）
+form/           表单业务领域（models/service/query/submit/api）
+tools/          Demo 工具集（8 个基础 MCP 工具）
+core/           跨模块基础设施（http_client, logging_helper, tool_decorators）
+models/         通用 VO 实体（ApiResponse, ListResponse, ListData）
 ```
+
+每个业务领域包内包含该领域的全部层级：数据模型 → 业务逻辑 → MCP 工具 → HTTP API 适配器。
+
+工具函数使用 ``@log_tool`` 和 ``@require_auth`` 装饰器剥离日志和认证逻辑，每函数体缩减至 3-8 行。
 
 ## 业务模块
 
@@ -38,7 +42,11 @@ pip install python-mcp-demo
 ### 开发模式（stdio 传输）
 
 ```bash
+# 默认加载 .env.dev 配置
 python -m python_mcp_demo
+
+# 指定环境
+MCP_ENV=test python -m python_mcp_demo
 ```
 
 ### 生产模式（SSE 传输）
@@ -85,10 +93,25 @@ print(result)  # Hello, FastMCP! Welcome to MCP.
 
 ## 环境配置
 
-所有配置项通过环境变量或 `.env` 文件加载，以 `MCP_` 为前缀：
+### 多环境支持
+
+通过 `MCP_ENV` 环境变量切换配置环境：
+
+```bash
+MCP_ENV=dev   # 开发环境 → 加载 .env.dev（DEBUG 日志，localhost 后端）
+MCP_ENV=test  # 测试环境 → 加载 .env.test（JSON 日志，测试后端）
+MCP_ENV=prod  # 生产环境 → 加载 .env.prod（JSON 日志，生产后端）
+```
+
+K8s 部署只需设置 `MCP_ENV=prod`，其余配置从 `.env.prod` 读取。
+
+**优先级**：环境变量 > `.env.{MCP_ENV}` 文件 > 默认值
+
+### 配置项一览
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
+| `MCP_ENV` | `dev` | 环境标识（dev/test/prod） |
 | `MCP_SERVER_NAME` | `ai-office-mcp` | FastMCP 服务器名称 |
 | `MCP_HOST` | `0.0.0.0` | 监听地址 |
 | `MCP_PORT` | `8000` | 监听端口 |
@@ -116,47 +139,53 @@ uv run pytest -v --cov=python_mcp_demo --cov-report=term-missing
 # 代码检查
 uv run ruff check src/ tests/
 
-# 启动服务器
-uv run python -m python_mcp_demo
+# 启动服务器（开发模式）
+MCP_ENV=dev uv run python -m python_mcp_demo
 ```
 
 ## 项目结构
 
 ```
 src/python_mcp_demo/
-├── __init__.py          # 导出 create_server, mcp, tools
-├── __main__.py          # CLI 入口
-├── server.py            # 向后兼容封装
-├── main.py              # FastAPI + FastMCP 入口
-├── config.py            # 配置管理
-├── auth.py              # 认证中间件
-├── exceptions.py        # 自定义异常
-├── logging_.py          # loguru 结构化日志
-├── urls.py              # API URL 集中管理
-├── core/
-│   └── http_client.py   # BaseHttpClient 基类
-├── models/
-│   ├── form.py          # 表单数据模型
-│   └── attendance.py    # 考勤数据模型
-├── services/
-│   ├── form_service.py          # 表单业务逻辑
-│   └── attendance_service.py    # 考勤业务逻辑
-├── adapters/
-│   ├── form_api.py       # 表单引擎 HTTP API
-│   └── attendance_api.py # 考勤服务 HTTP API
-└── tools/
-    ├── demo.py                 # 8 个 demo 工具
-    ├── form_query.py           # 表单查询工具
-    ├── form_submit.py          # 表单提交工具
-    ├── attendance_query.py     # 考勤查询工具
-    └── attendance_submit.py    # 考勤操作工具
+├── __init__.py              # 导出 create_server, mcp
+├── __main__.py              # CLI 入口
+├── server.py                # 向后兼容封装
+├── main.py                  # FastAPI + FastMCP 入口（装配根）
+├── config.py                # 多环境配置（MCP_ENV）
+├── auth.py                  # 认证中间件（TokenVerificationResult）
+├── exceptions.py            # 自定义异常（MCPToolError, MathExpressionError）
+├── logging_.py              # loguru 结构化日志（log_json）
+├── urls.py                  # API URL 集中管理
+├── attendance/              # 考勤业务领域
+│   ├── __init__.py
+│   ├── models.py            # 考勤数据模型（Pydantic）
+│   ├── service.py           # 考勤业务逻辑（纯 Python）
+│   ├── query.py             # 查询类 MCP 工具
+│   ├── submit.py            # 操作类 MCP 工具
+│   └── api.py               # 考勤 HTTP API 适配器
+├── form/                    # 表单业务领域
+│   ├── __init__.py
+│   ├── models.py            # 表单数据模型（Pydantic）
+│   ├── service.py           # 表单业务逻辑（纯 Python）
+│   ├── query.py             # 查询类 MCP 工具
+│   ├── submit.py            # 提交类 MCP 工具
+│   └── api.py               # 表单引擎 HTTP API 适配器
+├── core/                    # 跨域基础设施
+│   ├── http_client.py       # BaseHttpClient 基类（超时/重试/错误处理）
+│   ├── logging_helper.py    # ToolLogger 上下文管理器（向后兼容）
+│   └── tool_decorators.py   # @log_tool + @require_auth 装饰器
+├── models/                  # 通用 VO 实体
+│   └── vo.py                # ApiResponse, ListResponse, ListData
+└── tools/                   # Demo 工具集
+    └── demo.py              # 8 个基础 demo 工具
 ```
 
 ## 文档
 
-- [架构说明](docs/architecture.md) — 5 层分层架构、模块职责、调用关系
+- [架构说明](docs/architecture.md) — 业务领域分包架构、模块职责、调用关系
 - [API 文档](docs/api.md) — 所有工具的接口定义、参数、输出格式
 - [考勤模块指南](docs/attendance-module-guide.md) — 考勤模块使用指南
+- [部署配置指南](docs/deployment.md) — K8s 部署、多环境配置、日志说明
 
 ## 许可证
 

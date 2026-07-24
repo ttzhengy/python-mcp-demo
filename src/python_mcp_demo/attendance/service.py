@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from python_mcp_demo.adapters.attendance_api import AttendanceApiAdapter
+from python_mcp_demo.attendance.api import AttendanceApiAdapter
 from python_mcp_demo.models.vo import ApiResponse, ListResponse
 
 

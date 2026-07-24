@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from python_mcp_demo.adapters.form_api import FormApiAdapter
+from python_mcp_demo.form.api import FormApiAdapter
 from python_mcp_demo.models.vo import ApiResponse, ListResponse
 
 

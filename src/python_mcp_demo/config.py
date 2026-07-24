@@ -1,11 +1,21 @@
 """AI 办公助手 — 配置管理（基于 pydantic-settings）。
 
-配置优先级：环境变量 > .env 文件 > 默认值
+配置优先级：环境变量 > .env.{MCP_ENV} 文件 > 默认值
 所有环境变量以 MCP_ 为前缀。
+
+多环境支持：
+    通过 ``MCP_ENV`` 环境变量切换配置环境（dev/test/prod）。
+    K8s 部署时只需设置 ``MCP_ENV=prod``，其余配置从 ``.env.prod`` 读取。
+
+    环境文件：
+        .env.dev   — 开发配置（DEBUG 日志，localhost 后端，人类可读日志）
+        .env.test  — 测试配置（INFO 日志，测试后端，JSON 日志）
+        .env.prod  — 生产配置（WARN 日志，生产后端，JSON 日志）
 
 配置分组说明：
 
   **部署环境相关**（通过 K8s Deployment env: 注入，各环境不同）
+  - ``MCP_ENV``：环境标识（dev/test/prod）
   - ``MCP_BACKEND_BASE_URL``：后端 API 基础地址
   - ``MCP_BACKEND_AUTH_URL``：认证服务 URL
   - ``MCP_HOST``：监听地址
@@ -24,19 +34,46 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _resolve_env_file() -> str:
+    """根据 MCP_ENV 环境变量解析对应的 .env 文件路径。
+
+    优先级：
+        1. 环境变量 ``MCP_ENV`` → ``.env.{env}``
+        2. 如果 ``.env.{env}`` 不存在，回退到 ``.env``
+        3. 如果都没找到，返回 ``.env``（pydantic-settings 会静默跳过）
+
+    Returns:
+        env_file 字符串（相对于项目根目录）。
+    """
+    env_name = os.getenv("MCP_ENV", "dev")
+    project_root = Path(__file__).resolve().parent.parent.parent
+    env_file = project_root / f".env.{env_name}"
+
+    if env_file.is_file():
+        return str(env_file)
+
+    # 回退到 .env 或返回不存在的路径让 pydantic-settings 跳过
+    fallback = project_root / ".env"
+    return str(fallback) if fallback.is_file() else str(env_file)
 
 
 class Settings(BaseSettings):
     """AI 办公助手全局配置。
 
-    从环境变量（MCP_ 前缀）或 .env 文件加载。
+    从环境变量（MCP_ 前缀）或 .env.{MCP_ENV} 文件加载。
+    环境变量优先级最高：环境变量 > .env.* > 默认值。
 
     按部署时注入 vs 代码内定分组，详见模块文档字符串。
     """
 
     # ═══════════════════════════════════════════════════════════════╗
-    #  部署环境相关（各环境不同，通过 K8s Deployment env: 注入）    ║
+    #  部署环境相关（各环境不同，通过 K8s Deployment env: 注入）   ║
     # ╚══════════════════════════════════════════════════════════════╝
 
     server_name: str = "ai-office-mcp"
@@ -61,7 +98,7 @@ class Settings(BaseSettings):
     """是否输出 JSON 结构化日志 vs 人类可读格式（K8s 用 JSON，本地开发用 readable）。"""
 
     # ═══════════════════════════════════════════════════════════════╗
-    #  运行策略相关（代码内定，极少变更，一般不通过环境变量覆盖）   ║
+    #  运行策略相关（代码内定，极少变更，一般不通过环境变量覆盖） ║
     # ╚══════════════════════════════════════════════════════════════╝
 
     request_timeout: int = 20
@@ -88,7 +125,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="MCP_",
-        env_file=".env",
+        env_file=_resolve_env_file(),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -101,6 +138,6 @@ settings = Settings()
 def load_settings() -> Settings:
     """返回全局 Settings 单例。
 
-    在模块初始化时自动加载环境变量和 .env 文件。
+    在模块初始化时自动根据 MCP_ENV 加载对应的 .env.* 文件。
     """
     return settings
