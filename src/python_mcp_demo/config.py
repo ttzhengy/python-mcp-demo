@@ -44,23 +44,31 @@ def _resolve_env_file() -> str:
     """根据 MCP_ENV 环境变量解析对应的 .env 文件路径。
 
     优先级：
-        1. 环境变量 ``MCP_ENV`` → ``.env.{env}``
-        2. 如果 ``.env.{env}`` 不存在，回退到 ``.env``
-        3. 如果都没找到，返回 ``.env``（pydantic-settings 会静默跳过）
+        1. 显式设置了 ``MCP_ENV`` → ``.env.{env}``
+        2. 未设置 ``MCP_ENV`` → 先检查 ``.env``（本地开发），再回退 ``.env.dev``
+        3. 如果都没找到，返回不存在的路径（pydantic-settings 会静默跳过）
 
     Returns:
-        env_file 字符串（相对于项目根目录）。
+        env_file 绝对路径字符串。
     """
-    env_name = os.getenv("MCP_ENV", "dev")
     project_root = Path(__file__).resolve().parent.parent.parent
-    env_file = project_root / f".env.{env_name}"
+    env_name = os.getenv("MCP_ENV", "")
 
-    if env_file.is_file():
+    if env_name:
+        # 显式指定环境：直接加载 .env.{env}
+        env_file = project_root / f".env.{env_name}"
+        if env_file.is_file():
+            return str(env_file)
+        # 指定了环境但文件不存在，不静默回退，让 pydantic-settings 用默认值
         return str(env_file)
 
-    # 回退到 .env 或返回不存在的路径让 pydantic-settings 跳过
-    fallback = project_root / ".env"
-    return str(fallback) if fallback.is_file() else str(env_file)
+    # 未指定 MCP_ENV：优先加载 .env（本地开发覆盖），回退到 .env.dev
+    plain_env = project_root / ".env"
+    if plain_env.is_file():
+        return str(plain_env)
+
+    dev_env = project_root / ".env.dev"
+    return str(dev_env)  # 即使不存在也返回，pydantic-settings 会跳过
 
 
 class Settings(BaseSettings):

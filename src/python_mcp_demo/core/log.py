@@ -17,13 +17,30 @@ from pathlib import Path
 from loguru import logger
 
 
+def _normalize_log_level(level: str) -> str:
+    """将常见日志级别别名规范化为 loguru 可识别的标准名称。
+
+    loguru 不识别 ``WARN``，只认 ``WARNING``；类似地 ``FATAL`` → ``CRITICAL``。
+
+    Args:
+        level: 原始日志级别字符串（大小写不限）。
+
+    Returns:
+        规范化后的大写级别名称。
+    """
+    aliases = {"WARN": "WARNING", "FATAL": "CRITICAL", "TRACE": "DEBUG"}
+    normalized = aliases.get(level.upper(), level.upper())
+    return normalized
+
+
 def setup_logging(log_level: str = "INFO", json_format: bool = True) -> None:
     """配置 loguru 日志输出。
 
     Args:
-        log_level: 日志级别（DEBUG / INFO / WARNING / ERROR）。
+        log_level: 日志级别（DEBUG / INFO / WARNING / ERROR），接受 WARN 等别名。
         json_format: True = JSON 结构化输出；False = 人类可读格式。
     """
+    log_level = _normalize_log_level(log_level)
     # 移除默认的 stderr handler
     logger.remove()
 
