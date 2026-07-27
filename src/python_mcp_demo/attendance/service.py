@@ -22,27 +22,29 @@ class AttendanceService:
     def __init__(self, adapter: AttendanceApiAdapter) -> None:
         self._adapter = adapter
 
-    async def clock_in(self, token: str) -> ApiResponse:
+    async def clock_in(self, token: str, org_id: str | None = None) -> ApiResponse:
         """上班签到。
 
         Args:
             token: 用户 JWT Token。
+            org_id: 组织 ID（用于路由到对应的后端 baseurl）。
 
         Returns:
             ``ApiResponse`` 实体。
         """
-        return await self._adapter.clock_in(token=token)
+        return await self._adapter.clock_in(token=token, org_id=org_id)
 
-    async def clock_out(self, token: str) -> ApiResponse:
+    async def clock_out(self, token: str, org_id: str | None = None) -> ApiResponse:
         """下班签退。
 
         Args:
             token: 用户 JWT Token。
+            org_id: 组织 ID（用于路由到对应的后端 baseurl）。
 
         Returns:
             ``ApiResponse`` 实体。
         """
-        return await self._adapter.clock_out(token=token)
+        return await self._adapter.clock_out(token=token, org_id=org_id)
 
     async def leave_apply(
         self,
@@ -51,6 +53,7 @@ class AttendanceService:
         date_from: str,
         date_to: str,
         reason: str,
+        org_id: str | None = None,
     ) -> ApiResponse:
         """请假申请。
 
@@ -60,6 +63,7 @@ class AttendanceService:
             date_from: 开始日期（YYYY-MM-DD）。
             date_to: 结束日期（YYYY-MM-DD）。
             reason: 请假原因。
+            org_id: 组织 ID（用于路由到对应的后端 baseurl）。
 
         Returns:
             ``ApiResponse`` 实体。
@@ -70,6 +74,7 @@ class AttendanceService:
             date_from=date_from,
             date_to=date_to,
             reason=reason,
+            org_id=org_id,
         )
 
     async def query_records(
@@ -79,6 +84,7 @@ class AttendanceService:
         date_to: str | None = None,
         status: str | None = None,
         limit: int = 10,
+        org_id: str | None = None,
     ) -> ListResponse:
         """查询考勤记录。
 
@@ -88,6 +94,7 @@ class AttendanceService:
             date_to: 时间范围止（YYYY-MM-DD），可选。
             status: 考勤状态，可选。
             limit: 返回条数上限，默认 10。
+            org_id: 组织 ID（用于路由到对应的后端 baseurl）。
 
         Returns:
             ``ListResponse`` 实体。
@@ -99,6 +106,7 @@ class AttendanceService:
             date_to=date_to,
             status=status,
             limit=effective_limit,
+            org_id=org_id,
         )
 
     async def query_leave(
@@ -108,6 +116,7 @@ class AttendanceService:
         date_to: str | None = None,
         status: str | None = None,
         limit: int = 10,
+        org_id: str | None = None,
     ) -> ListResponse:
         """查询请假记录。
 
@@ -117,6 +126,7 @@ class AttendanceService:
             date_to: 时间范围止（YYYY-MM-DD），可选。
             status: 请假状态，可选。
             limit: 返回条数上限，默认 10。
+            org_id: 组织 ID（用于路由到对应的后端 baseurl）。
 
         Returns:
             ``ListResponse`` 实体。
@@ -128,4 +138,5 @@ class AttendanceService:
             date_to=date_to,
             status=status,
             limit=effective_limit,
+            org_id=org_id,
         )

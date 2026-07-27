@@ -32,6 +32,7 @@ def register_tools(
     @_require_auth
     async def clock_in(
         user_token: str,
+        org_id: str = "",
         user_id: str = "",
     ) -> dict:
         """上班签到。
@@ -40,12 +41,16 @@ def register_tools(
 
         Args:
             user_token: 用户 JWT Token（由 @require_auth 校验后注入 user_id）。
+            org_id: 组织 ID（A/B/C/D/E），用于路由到对应的后端服务。
             user_id: 用户标识（由 @require_auth 自动注入，无需手动传入）。
 
         Returns:
             {"success": bool, "data": dict | None, "error": str | None}
         """
-        result = await attendance_service.clock_in(token=user_token)
+        result = await attendance_service.clock_in(
+            token=user_token,
+            org_id=org_id or None,
+        )
         return result.to_dict() if not isinstance(result, dict) else result
 
     @server.tool()
@@ -53,6 +58,7 @@ def register_tools(
     @_require_auth
     async def clock_out(
         user_token: str,
+        org_id: str = "",
         user_id: str = "",
     ) -> dict:
         """下班签退。
@@ -61,12 +67,16 @@ def register_tools(
 
         Args:
             user_token: 用户 JWT Token（由 @require_auth 校验后注入 user_id）。
+            org_id: 组织 ID（A/B/C/D/E），用于路由到对应的后端服务。
             user_id: 用户标识（由 @require_auth 自动注入，无需手动传入）。
 
         Returns:
             {"success": bool, "data": dict | None, "error": str | None}
         """
-        result = await attendance_service.clock_out(token=user_token)
+        result = await attendance_service.clock_out(
+            token=user_token,
+            org_id=org_id or None,
+        )
         return result.to_dict() if not isinstance(result, dict) else result
 
     @server.tool()
@@ -78,12 +88,14 @@ def register_tools(
         date_from: str,
         date_to: str,
         reason: str,
+        org_id: str = "",
         user_id: str = "",
     ) -> dict:
         """申请请假。
 
         Args:
             user_token: 用户 JWT Token（由 @require_auth 校验后注入 user_id）。
+            org_id: 组织 ID（A/B/C/D/E），用于路由到对应的后端服务。
             user_id: 用户标识（由 @require_auth 自动注入，无需手动传入）。
             leave_type: 请假类型（年假/事假/病假/婚假/产假）。
             date_from: 开始日期（YYYY-MM-DD）。
@@ -109,5 +121,6 @@ def register_tools(
             date_from=date_from,
             date_to=date_to,
             reason=reason,
+            org_id=org_id or None,
         )
         return result.to_dict() if not isinstance(result, dict) else result

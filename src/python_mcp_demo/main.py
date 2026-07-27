@@ -26,6 +26,7 @@ from starlette.applications import Starlette
 from starlette.routing import Mount
 
 from python_mcp_demo.attendance.api import AttendanceApiAdapter
+from python_mcp_demo.attendance.router import OrgIdRouter
 from python_mcp_demo.attendance.service import AttendanceService
 from python_mcp_demo.core.auth import AuthMiddleware
 from python_mcp_demo.config import settings
@@ -45,8 +46,15 @@ form_adapter = FormApiAdapter(
     connect_timeout=settings.connect_timeout,
     max_retries=settings.max_retries,
 )
+
+# 考勤模块：初始化 OrgId 路由器
+attendance_org_router = OrgIdRouter(
+    mapping=settings.get_attendance_org_mapping(),
+    default_url=settings.backend_base_url,
+)
 attendance_adapter = AttendanceApiAdapter(
     base_url=settings.backend_base_url,
+    org_router=attendance_org_router,
     timeout=settings.request_timeout,
     connect_timeout=settings.connect_timeout,
     max_retries=settings.max_retries,

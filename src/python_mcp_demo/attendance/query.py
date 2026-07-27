@@ -32,6 +32,7 @@ def register_tools(
     @_require_auth
     async def query_attendance(
         user_token: str,
+        org_id: str = "",
         user_id: str = "",
         date_from: str = "",
         date_to: str = "",
@@ -42,6 +43,7 @@ def register_tools(
 
         Args:
             user_token: 用户 JWT Token（由 @require_auth 校验后注入 user_id）。
+            org_id: 组织 ID（A/B/C/D/E），用于路由到对应的后端服务。
             user_id: 用户标识（由 @require_auth 自动注入，无需手动传入）。
             date_from: 时间范围起（YYYY-MM-DD），可选。
             date_to: 时间范围止（YYYY-MM-DD），可选。
@@ -57,6 +59,7 @@ def register_tools(
             date_to=date_to or None,
             status=status or None,
             limit=limit,
+            org_id=org_id or None,
         )
         return result.to_dict() if not isinstance(result, dict) else result
 
@@ -65,6 +68,7 @@ def register_tools(
     @_require_auth
     async def query_leave_records(
         user_token: str,
+        org_id: str = "",
         user_id: str = "",
         date_from: str = "",
         date_to: str = "",
@@ -75,6 +79,7 @@ def register_tools(
 
         Args:
             user_token: 用户 JWT Token（由 @require_auth 校验后注入 user_id）。
+            org_id: 组织 ID（A/B/C/D/E），用于路由到对应的后端服务。
             user_id: 用户标识（由 @require_auth 自动注入，无需手动传入）。
             date_from: 时间范围起（YYYY-MM-DD），可选。
             date_to: 时间范围止（YYYY-MM-DD），可选。
@@ -90,5 +95,6 @@ def register_tools(
             date_to=date_to or None,
             status=status or None,
             limit=limit,
+            org_id=org_id or None,
         )
         return result.to_dict() if not isinstance(result, dict) else result

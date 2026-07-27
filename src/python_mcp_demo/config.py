@@ -131,6 +131,36 @@ class Settings(BaseSettings):
     max_fetch_size: int = 5000
     """fetch_url 工具内容预览的最大字节数（兼容旧版 demo）。"""
 
+    # ── 考勤模块多 baseurl 路由配置 ──
+    attendance_org_url_a: str = "http://localhost:8080"
+    """考勤 OrgId A 对应的后端服务 URL。"""
+
+    attendance_org_url_b: str = "http://localhost:8080"
+    """考勤 OrgId B 对应的后端服务 URL。"""
+
+    attendance_org_url_c: str = "http://localhost:8080"
+    """考勤 OrgId C 对应的后端服务 URL。"""
+
+    attendance_org_url_d: str = "http://localhost:8080"
+    """考勤 OrgId D 对应的后端服务 URL。"""
+
+    attendance_org_url_e: str = "http://localhost:8080"
+    """考勤 OrgId E 对应的后端服务 URL。"""
+
+    def get_attendance_org_mapping(self) -> dict[str, str]:
+        """返回考勤模块 OrgId → BaseURL 映射字典。
+
+        Returns:
+            OrgId 到 BaseURL 的映射字典。
+        """
+        return {
+            "A": self.attendance_org_url_a,
+            "B": self.attendance_org_url_b,
+            "C": self.attendance_org_url_c,
+            "D": self.attendance_org_url_d,
+            "E": self.attendance_org_url_e,
+        }
+
     model_config = SettingsConfigDict(
         env_prefix="MCP_",
         env_file=_resolve_env_file(),

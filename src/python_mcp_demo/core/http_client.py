@@ -80,6 +80,7 @@ class BaseHttpClient:
         params: dict | None = None,
         json_data: dict | None = None,
         token: str | None = None,
+        base_url_override: str | None = None,
     ) -> httpx.Response:
         """执行 HTTP 请求（含重试逻辑 + 基础错误日志）。
 
@@ -92,6 +93,7 @@ class BaseHttpClient:
             params: URL 查询参数。
             json_data: JSON 请求体。
             token: 用户 JWT Token。
+            base_url_override: 动态覆盖 base_url（用于多租户/多环境路由）。
 
         Returns:
             httpx.Response 对象。
@@ -102,13 +104,14 @@ class BaseHttpClient:
             httpx.RequestError: 网络错误。
         """
         headers = self._build_headers(token)
+        actual_base_url = base_url_override or self._base_url
         try:
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(self._timeout, connect=self._connect_timeout),
             ) as client:
                 response = await client.request(
                     method=method,
-                    url=f"{self._base_url}{path}",
+                    url=f"{actual_base_url}{path}",
                     params=params,
                     json=json_data,
                     headers=headers,
@@ -144,6 +147,7 @@ class BaseHttpClient:
         token: str | None = None,
         action_name: str = "请求",
         service_name: str = "后端服务",
+        base_url_override: str | None = None,
     ) -> ApiResponse | ListResponse:
         """统一的 API 调用入口 — 简化子类的 try/except 样板代码。
 
@@ -159,6 +163,7 @@ class BaseHttpClient:
             token: 用户 JWT Token。
             action_name: 用于日志和错误消息的操作名称（如"签到"、"查询"）。
             service_name: 用于日志的后端服务名称（如"考勤服务"、"表单引擎"）。
+            base_url_override: 动态覆盖 base_url（用于多租户/多环境路由）。
 
         Returns:
             ``ApiResponse`` 或 ``ListResponse`` 实体（请求失败时包含错误信息）。
@@ -170,6 +175,7 @@ class BaseHttpClient:
                 params=params,
                 json_data=json_data,
                 token=token,
+                base_url_override=base_url_override,
             )
             return parse_func(response)
         except httpx.TimeoutException:
