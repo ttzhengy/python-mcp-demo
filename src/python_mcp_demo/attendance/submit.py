@@ -9,7 +9,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from python_mcp_demo.attendance.service import AttendanceService
-from python_mcp_demo.auth import AuthMiddleware
+from python_mcp_demo.core.auth import AuthMiddleware
 from python_mcp_demo.core.tool_decorators import log_tool, require_auth
 
 

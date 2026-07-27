@@ -27,11 +27,11 @@ from starlette.routing import Mount
 
 from python_mcp_demo.attendance.api import AttendanceApiAdapter
 from python_mcp_demo.attendance.service import AttendanceService
-from python_mcp_demo.auth import AuthMiddleware
+from python_mcp_demo.core.auth import AuthMiddleware
 from python_mcp_demo.config import settings
 from python_mcp_demo.form.api import FormApiAdapter
 from python_mcp_demo.form.service import FormService
-from python_mcp_demo.logging_ import log_json, logger, setup_logging
+from python_mcp_demo.core.log import log_json, logger, setup_logging
 
 # 初始化日志
 setup_logging(log_level=settings.log_level, json_format=settings.log_json)

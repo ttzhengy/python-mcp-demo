@@ -25,8 +25,8 @@ import time
 import uuid
 from typing import Any, Callable
 
-from python_mcp_demo.auth import AuthMiddleware
-from python_mcp_demo.logging_ import log_json
+from python_mcp_demo.core.auth import AuthMiddleware
+from python_mcp_demo.core.log import log_json
 
 
 def log_tool(tool_name: str):

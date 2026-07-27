@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from python_mcp_demo.logging_ import logger
+from python_mcp_demo.core.log import logger
 
 
 @dataclass
