@@ -42,7 +42,7 @@ uv run python -m python_mcp_demo
 ### 1. 编写代码
 
 - 所有代码在 `src/python_mcp_demo/` 目录下
-- Demo 工具编辑 `server.py`，POC 工具编辑 `main.py`
+- Demo 工具编辑 `tools/demo.py`，业务工具编辑对应领域包（`form/`, `attendance/`）
 - 业务适配器新建独立模块（参考 `adapters/form_api.py`）
 - 遵循 [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html) 的 docstring 格式
 
@@ -195,7 +195,7 @@ def my_function(param1: str, param2: int = 0) -> bool:
 
 ### 日志规范
 
-- 使用 `logger` 记录操作日志（`server.py` 用标准 logging，POC 用 loguru）
+- 使用 `logger` 记录操作日志（统一使用 loguru）
 - POC 工具执行日志使用 `log_json()` 函数输出结构化 JSON
 - 敏感信息（Token）脱敏后打印
 
@@ -226,7 +226,6 @@ uv publish
 src/python_mcp_demo/
 ├── __init__.py          # 导出公共 API，版本声明
 ├── __main__.py          # CLI 入口
-├── server.py            # 向后兼容封装
 ├── main.py              # FastAPI + FastMCP 主入口
 ├── config.py            # 配置管理（pydantic-settings, MCP_ 前缀）
 ├── auth.py              # Token 前置校验中间件

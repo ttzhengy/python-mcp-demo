@@ -8,11 +8,10 @@
     core/          跨模块基础设施（http_client, logging_helper）
     models/        通用 VO 实体
 """
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
-from .server import create_server, mcp
+from .main import create_server
 
 __all__ = [
     "create_server",
-    "mcp",
 ]

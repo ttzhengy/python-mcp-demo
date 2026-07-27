@@ -137,7 +137,7 @@ def create_app(name: str | None = None) -> Starlette:
     # ── 1. 内层 FastAPI 应用（所有路由以 / 注册） ──
     inner = FastAPI(
         title=name or settings.server_name,
-        version="0.4.0",
+        version="0.5.0",
     )
 
     @inner.get("/health")
@@ -154,7 +154,7 @@ def create_app(name: str | None = None) -> Starlette:
     @asynccontextmanager
     async def _lifespan(_app: Starlette):
         logger.info(
-            "🚀 AI 办公助手启动: {name} @ /obot (v0.4.0)",
+            "🚀 AI 办公助手启动: {name} @ /obot (v0.5.0)",
             name=inner.title,
         )
         yield

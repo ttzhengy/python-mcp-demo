@@ -147,9 +147,8 @@ MCP_ENV=dev uv run python -m python_mcp_demo
 
 ```
 src/python_mcp_demo/
-├── __init__.py              # 导出 create_server, mcp
+├── __init__.py              # 导出 create_server
 ├── __main__.py              # CLI 入口
-├── server.py                # 向后兼容封装
 ├── main.py                  # FastAPI + FastMCP 入口（装配根）
 ├── config.py                # 多环境配置（MCP_ENV）
 ├── auth.py                  # 认证中间件（TokenVerificationResult）
